@@ -25,6 +25,7 @@ const (
 	mcpMaxPending         = 5 // one active plus four queued
 	mcpUserHeader         = "X-OpenCrow-User"
 	mcpConversationHeader = "X-OpenCrow-Conversation"
+	mcpMaxImageBytes      = 10 << 20
 )
 
 const mcpSystemPrompt = `You only handle requests that another AI assistant sends through OpenCrow's MCP endpoint on behalf of a user.
@@ -33,7 +34,7 @@ MCP requests contain an optional <mcp-context> block followed by an <mcp-request
 
 Your response goes back to the calling assistant, which relays it to the user. Reply with concise results and facts it can use, not chit-chat. Plain text or Markdown is fine. Always answer: NO_REPLY is not appropriate for MCP requests. If a request is unclear, say what is missing.
 
-The Matrix control tags remain available. A send-to tag sends the remaining text and any files to that Matrix room, and the calling assistant receives only a short acknowledgement; send to Matrix only when the user asks for it. A sendfile tag without send-to uploads the file to the default Matrix room while the remaining response goes to the calling assistant, so say in that response what was sent. Reaction tags have no effect for MCP requests because there is no source Matrix event.`
+The Matrix control tags remain available. A send-to tag sends the remaining text and any files to that Matrix room, and the calling assistant receives only a short acknowledgement; send to Matrix only when the user asks for it. A sendfile tag without send-to returns the file to the calling assistant as an image, which it can show the user. Only PNG, JPEG, GIF, and WebP images up to 10 MiB can be returned; for other files, share a link instead. Reaction tags have no effect for MCP requests because there is no source Matrix event.`
 
 const (
 	mcpToolIntro = "Ask this assistant to do or look up something on the user's behalf. " +
@@ -72,6 +73,7 @@ type mcpCall struct {
 	sessionKey mcpSessionKey
 	done       chan struct{}
 	text       string
+	images     []*mcp.ImageContent
 	err        error
 	deadline   time.Time
 	started    bool
@@ -156,7 +158,22 @@ func (m *MCPService) ask(ctx context.Context, req *mcp.CallToolRequest, input mc
 		return nil, nil, err
 	}
 
-	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: reply}}}, nil, nil
+	return mcpResult(reply, call.images), nil, nil
+}
+
+// mcpResult returns the reply text, omitted when empty and there are images,
+// followed by the images.
+func mcpResult(text string, images []*mcp.ImageContent) *mcp.CallToolResult {
+	var content []mcp.Content
+	if text != "" || len(images) == 0 {
+		content = append(content, &mcp.TextContent{Text: text})
+	}
+
+	for _, image := range images {
+		content = append(content, image)
+	}
+
+	return &mcp.CallToolResult{Content: content}
 }
 
 func mcpSessionKeyFromHeader(header http.Header) (mcpSessionKey, error) {
@@ -273,11 +290,12 @@ func (m *MCPService) begin(callID string) (time.Time, mcpSessionKey, bool) {
 	return call.deadline, call.sessionKey, true
 }
 
-func (m *MCPService) complete(callID, text string) {
+func (m *MCPService) complete(callID, text string, images []*mcp.ImageContent) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	if call := m.calls[callID]; call != nil {
+		call.images = images
 		m.finishLocked(callID, call, text, nil)
 	}
 }
@@ -525,8 +543,58 @@ func (w *Worker) processMCPRequest(ctx context.Context, item Inbox) {
 		return
 	}
 
-	result := w.app.deliverVoiceReply(turnCtx, w.piCfg.DefaultRoomID, reply)
-	w.mcpService.complete(item.MessageID, result.Text)
+	if _, room := extractSendTo(reply); room != "" {
+		result := w.app.deliverVoiceReply(turnCtx, w.piCfg.DefaultRoomID, reply)
+		w.mcpService.complete(item.MessageID, result.Text, nil)
+
+		return
+	}
+
+	text, images := mcpReplyImages(extractSendFiles(reply))
+	w.mcpService.complete(item.MessageID, text, images)
+}
+
+// mcpReplyImages loads sendfile paths as images for the calling assistant.
+// Files that cannot be returned are noted in the text instead.
+func mcpReplyImages(text string, filePaths []string) (string, []*mcp.ImageContent) {
+	var images []*mcp.ImageContent
+
+	for _, path := range filePaths {
+		image, err := readMCPImage(path)
+		if err != nil {
+			slog.Warn("MCP worker: file not returned", "path", path, "error", err)
+			text = strings.TrimSpace(fmt.Sprintf("%s\n\n(%s could not be returned: %v.)", text, filepath.Base(path), err))
+
+			continue
+		}
+
+		images = append(images, image)
+	}
+
+	return text, images
+}
+
+func readMCPImage(path string) (*mcp.ImageContent, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, errors.New("file not found")
+	}
+
+	if info.Size() > mcpMaxImageBytes {
+		return nil, errors.New("larger than 10 MiB")
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, errors.New("file not readable")
+	}
+
+	switch mimeType := http.DetectContentType(data); mimeType {
+	case "image/png", "image/jpeg", "image/gif", "image/webp":
+		return &mcp.ImageContent{Data: data, MIMEType: mimeType}, nil
+	default:
+		return nil, errors.New("only PNG, JPEG, GIF, and WebP images can be returned")
+	}
 }
 
 func (w *Worker) runMCPTurn(ctx context.Context, key mcpSessionKey, prompt string) (*PiProcess, string, error) {

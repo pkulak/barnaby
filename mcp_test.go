@@ -294,6 +294,79 @@ func TestMCPAskReturnsWorkerReply(t *testing.T) {
 	}
 }
 
+func TestMCPAskReturnsSentImages(t *testing.T) { //nolint:cyclop // end-to-end result assertions stay together
+	t.Parallel()
+
+	env := newTestMCPEnv(t, nil, true)
+	server := newTestMCPServer(t, env.service)
+
+	png := []byte("\x89PNG\r\n\x1a\nfake image data")
+	for name, data := range map[string][]byte{"image.png": png, "notes.txt": []byte("notes")} {
+		if err := os.WriteFile(filepath.Join(env.stateDir, name), data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	session, err := connectTestMCP(t, server.URL+mcpPath, http.Header{"Authorization": {"Bearer " + testMCPToken}})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: "ask", Arguments: map[string]any{"request": "mcp-image-test"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if result.IsError || len(result.Content) != 2 {
+		t.Fatalf("result = %+v", result)
+	}
+
+	text, ok := result.Content[0].(*mcp.TextContent)
+	if !ok || text.Text != "Here it is\n\n(notes.txt could not be returned: only PNG, JPEG, GIF, and WebP images can be returned.)" {
+		t.Fatalf("text = %+v", result.Content[0])
+	}
+
+	image, ok := result.Content[1].(*mcp.ImageContent)
+	if !ok || image.MIMEType != "image/png" || string(image.Data) != string(png) {
+		t.Fatalf("image = %+v", result.Content[1])
+	}
+
+	if len(env.matrix.sentFiles) != 0 {
+		t.Fatalf("files sent to Matrix: %v", env.matrix.sentFiles)
+	}
+}
+
+func TestMCPResultOmitsEmptyTextWithImages(t *testing.T) {
+	t.Parallel()
+
+	image := &mcp.ImageContent{Data: []byte("x"), MIMEType: "image/png"}
+	if result := mcpResult("", []*mcp.ImageContent{image}); len(result.Content) != 1 || result.Content[0] != image {
+		t.Fatalf("result = %+v", result)
+	}
+
+	if result := mcpResult("", nil); len(result.Content) != 1 {
+		t.Fatalf("empty result = %+v", result)
+	}
+}
+
+func TestMCPReplyImagesReportsUnreturnableFiles(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	large := filepath.Join(dir, "large.png")
+
+	if err := os.WriteFile(large, make([]byte, mcpMaxImageBytes+1), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	text, images := mcpReplyImages("", []string{large, filepath.Join(dir, "missing.png")})
+
+	want := "(large.png could not be returned: larger than 10 MiB.)\n\n(missing.png could not be returned: file not found.)"
+	if text != want || len(images) != 0 {
+		t.Fatalf("text = %q, images = %d; want %q", text, len(images), want)
+	}
+}
+
 func TestMCPSessionKeyFromHeader(t *testing.T) {
 	t.Parallel()
 

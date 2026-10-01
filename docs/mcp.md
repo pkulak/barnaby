@@ -2,8 +2,8 @@
 
 OpenCrow can expose itself as a tool to another AI assistant through the
 [Model Context Protocol](https://modelcontextprotocol.io/). The other assistant,
-such as LibreChat, hands OpenCrow a plain-language request and gets a text reply
-back. OpenCrow runs the request through a dedicated Pi session with its normal
+such as LibreChat, hands OpenCrow a plain-language request and gets a text reply,
+plus any images, back. OpenCrow runs the request through a dedicated Pi session with its normal
 tools and skills.
 
 ```mermaid
@@ -11,7 +11,7 @@ graph LR
     User --> Client["LibreChat or another MCP client"]
     Client -->|POST /mcp, tool ask| API["OpenCrow MCP endpoint"]
     API --> MCP["MCP worker"] -->|RPC| Pi["MCP Pi session"]
-    Pi --> MCP -->|text| API -->|tool result| Client
+    Pi --> MCP -->|text, images| API -->|tool result| Client
 ```
 
 The endpoint is disabled by default. Enabling it adds a fourth worker alongside
@@ -91,8 +91,9 @@ The server offers exactly one tool, `ask`:
 ```
 
 `request` is required. Leading and trailing whitespace is removed, and it is
-limited to 16 KiB of valid UTF-8. The result is one text content block with
-OpenCrow's reply.
+limited to 16 KiB of valid UTF-8. The result is a text content block with
+OpenCrow's reply, followed by an image content block for each image it returns
+(see [Files](#files)). The text block is left out when the reply is only images.
 
 The tool description tells the calling model what OpenCrow can do. It starts
 with a short generic introduction and then lists each loaded skill's `name` and
@@ -139,18 +140,30 @@ If the HTTP client disconnects, OpenCrow removes the queued request or cancels
 the active Pi turn. MCP queue rows are discarded at startup, so a request is
 never replayed after an OpenCrow restart.
 
+## Files
+
+A `<sendfile>/absolute/path</sendfile>` tag without `<send-to>` returns the file
+to the calling assistant as MCP image content. LibreChat, for example, shows it
+to the user as an attachment and passes it to its model.
+
+Only PNG, JPEG, GIF, and WebP images up to 10 MiB can be returned. The type is
+detected from the file's contents, not its name. MCP clients have no general way
+to show other files, so for anything else the reply text gets a short note, such
+as `(report.pdf could not be returned: only PNG, JPEG, GIF, and WebP images can be
+returned.)`, and the agent is told to share a link instead.
+
+Files only go one way. A tool call carries the arguments the calling model
+writes, so a client can't pass the user's uploads to `ask`. Public URLs in the
+request work as usual.
+
 ## Matrix delivery from MCP
 
-Normal replies go only to the calling assistant. The MCP Pi session can still
-use OpenCrow's response control tags:
+Normal replies and files go only to the calling assistant. The MCP Pi session
+can still use OpenCrow's response control tags:
 
 - `<send-to>ROOM_ID</send-to>` sends the remaining response and any files to the
   selected Matrix room. The calling assistant receives a short acknowledgement
   instead.
-- `<sendfile>/absolute/path</sendfile>` without `<send-to>` uploads the file to
-  `OPENCROW_MATRIX_ROOM_ID` while the remaining response goes to the calling
-  assistant. If there is no default room, the reply reports that the file
-  could not be sent.
 - `<react>` tags are removed and ignored because an MCP request has no source
   Matrix event to react to.
 
