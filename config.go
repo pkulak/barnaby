@@ -15,6 +15,7 @@ type Config struct {
 	Pi                PiConfig
 	BackgroundPi      PiConfig
 	VoicePi           PiConfig
+	MCPPi             PiConfig
 	HTTP              HTTPConfig
 	GroupTriggerRegex *regexp.Regexp
 }
@@ -22,6 +23,8 @@ type Config struct {
 type HTTPConfig struct {
 	Listen      string
 	BearerToken string
+	// MCPBearerToken enables the /mcp endpoint on the same listener.
+	MCPBearerToken string
 }
 
 type MatrixConfig struct {
@@ -101,12 +104,9 @@ func loadConfig(getenv func(string) string) (*Config, error) {
 		groupTriggerRegex = re
 	}
 
-	httpCfg := HTTPConfig{
-		Listen:      env.str("OPENCROW_HTTP_LISTEN"),
-		BearerToken: env.str("OPENCROW_HTTP_BEARER_TOKEN"),
-	}
-	if httpCfg.Listen != "" && httpCfg.BearerToken == "" {
-		return nil, errors.New("OPENCROW_HTTP_BEARER_TOKEN is required when OPENCROW_HTTP_LISTEN is set")
+	httpCfg, err := loadHTTPConfig(env)
+	if err != nil {
+		return nil, err
 	}
 
 	cfg := &Config{
@@ -122,6 +122,7 @@ func loadConfig(getenv func(string) string) (*Config, error) {
 		Pi:                loadPiConfig(env, workingDir, idleTimeout, skills),
 		BackgroundPi:      loadBackgroundPiConfig(env, workingDir, idleTimeout, skills),
 		VoicePi:           loadVoicePiConfig(env, workingDir, idleTimeout, skills),
+		MCPPi:             loadMCPPiConfig(env, workingDir, idleTimeout, skills),
 		HTTP:              httpCfg,
 		GroupTriggerRegex: groupTriggerRegex,
 	}
@@ -131,6 +132,23 @@ func loadConfig(getenv func(string) string) (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+func loadHTTPConfig(env envReader) (HTTPConfig, error) {
+	httpCfg := HTTPConfig{
+		Listen:         env.str("OPENCROW_HTTP_LISTEN"),
+		BearerToken:    env.str("OPENCROW_HTTP_BEARER_TOKEN"),
+		MCPBearerToken: env.str("OPENCROW_MCP_BEARER_TOKEN"),
+	}
+	if httpCfg.Listen != "" && httpCfg.BearerToken == "" {
+		return HTTPConfig{}, errors.New("OPENCROW_HTTP_BEARER_TOKEN is required when OPENCROW_HTTP_LISTEN is set")
+	}
+
+	if httpCfg.MCPBearerToken != "" && httpCfg.Listen == "" {
+		return HTTPConfig{}, errors.New("OPENCROW_HTTP_LISTEN is required when OPENCROW_MCP_BEARER_TOKEN is set")
+	}
+
+	return httpCfg, nil
 }
 
 func (m MatrixConfig) validate() error {
@@ -182,6 +200,17 @@ func loadBackgroundPiConfig(env envReader, workingDir string, idleTimeout time.D
 func loadVoicePiConfig(env envReader, workingDir string, idleTimeout time.Duration, skills []string) PiConfig {
 	cfg := loadPiConfig(env, workingDir, idleTimeout, skills)
 	cfg.SessionDir = filepath.Join(cfg.StateDir, "voice")
+
+	return cfg
+}
+
+func loadMCPPiConfig(env envReader, workingDir string, idleTimeout time.Duration, skills []string) PiConfig {
+	cfg := loadPiConfig(env, workingDir, idleTimeout, skills)
+	cfg.SessionDir = env.or("OPENCROW_MCP_SESSION_DIR", filepath.Join(os.TempDir(), "opencrow-mcp"))
+	// The MCP worker selects each request's session explicitly with
+	// new_session or switch_session, so resuming the latest file is useless.
+	cfg.NoContinue = true
+	cfg.CompactOnIdle = false
 
 	return cfg
 }

@@ -273,7 +273,7 @@ func TestApp_Commands(t *testing.T) {
 		{"compact no session", "!compact", []string{"No active session"}, false},
 		{"compact trailing whitespace", "!compact ", []string{"No active session"}, false},
 		{"help trailing newline", "!help\n", []string{"!help", "!restart"}, false},
-		{"help", "!help", []string{"!help", "!restart", "!stop", "!compact", "!skills", "!background-stop", "!background-restart", "!voice-stop", "!voice-restart", "!voice-compact"}, false},
+		{"help", "!help", []string{"!help", "!restart", "!stop", "!compact", "!skills", "!background-stop", "!background-restart", "!voice-stop", "!voice-restart", "!voice-compact", "!mcp-stop"}, false},
 		{"restart", "!restart", []string{"Session restarted"}, true},
 		{"skills", "!skills", []string{"No skills loaded"}, false},
 	}

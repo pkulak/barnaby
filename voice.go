@@ -89,6 +89,7 @@ type VoiceService struct {
 	calls     map[string]*voiceCall
 	resetting bool
 	server    *http.Server
+	mcp       *MCPService
 }
 
 func NewVoiceService(cfg HTTPConfig, inbox *InboxStore, worker *Worker) *VoiceService {
@@ -117,7 +118,17 @@ func (v *VoiceService) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/status", v.auth(v.handleStatus))
 	mux.HandleFunc("POST /v1/turn", v.auth(v.handleTurn))
 
+	if v.mcp != nil {
+		mux.Handle(mcpPath, v.mcp.Handler())
+	}
+
 	return mux
+}
+
+// SetMCP mounts the MCP endpoint on the voice HTTP listener.
+func (v *VoiceService) SetMCP(service *MCPService) {
+	v.mcp = service
+	v.server.Handler = v.Handler()
 }
 
 func (v *VoiceService) Run(ctx context.Context) error {
@@ -157,6 +168,11 @@ func (v *VoiceService) Run(ctx context.Context) error {
 	}
 
 	v.failAll(&voiceError{Status: http.StatusServiceUnavailable, Code: "shutting_down", Message: "OpenCrow is shutting down."})
+
+	if v.mcp != nil {
+		v.mcp.failAll(errMCPShuttingDown)
+	}
+
 	slog.Info("voice HTTP server stopped")
 
 	return err
@@ -271,11 +287,15 @@ func (v *VoiceService) awaitCall(w http.ResponseWriter, r *http.Request, request
 }
 
 func (v *VoiceService) auth(next http.HandlerFunc) http.HandlerFunc {
+	return requireBearer(v.cfg.BearerToken, next)
+}
+
+func requireBearer(token string, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		const prefix = "Bearer "
 
 		header := r.Header.Get("Authorization")
-		if !strings.HasPrefix(header, prefix) || subtle.ConstantTimeCompare([]byte(strings.TrimPrefix(header, prefix)), []byte(v.cfg.BearerToken)) != 1 {
+		if !strings.HasPrefix(header, prefix) || subtle.ConstantTimeCompare([]byte(strings.TrimPrefix(header, prefix)), []byte(token)) != 1 {
 			w.Header().Set("WWW-Authenticate", "Bearer")
 			writeVoiceError(w, &voiceError{Status: http.StatusUnauthorized, Code: "unauthorized", Message: "A valid bearer token is required."})
 

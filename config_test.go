@@ -146,6 +146,49 @@ func TestLoadConfig_HTTPRequiresBearerToken(t *testing.T) {
 	}
 }
 
+func TestLoadConfig_MCPDisabledByDefault(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := loadConfig(testEnv(baseMatrixEnv()))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if cfg.HTTP.MCPBearerToken != "" {
+		t.Errorf("MCP token = %q, want disabled", cfg.HTTP.MCPBearerToken)
+	}
+
+	if cfg.MCPPi.SessionDir != filepath.Join(os.TempDir(), "opencrow-mcp") || !cfg.MCPPi.NoContinue || cfg.MCPPi.CompactOnIdle {
+		t.Errorf("MCP Pi config = %+v", cfg.MCPPi)
+	}
+}
+
+func TestLoadConfig_MCPRequiresHTTPListener(t *testing.T) {
+	t.Parallel()
+
+	env := baseMatrixEnv()
+	env["OPENCROW_MCP_BEARER_TOKEN"] = "mcp-secret"
+
+	_, err := loadConfig(testEnv(env))
+	if err == nil || !strings.Contains(err.Error(), "OPENCROW_HTTP_LISTEN") {
+		t.Fatalf("error = %v, want missing listener", err)
+	}
+
+	env["OPENCROW_HTTP_LISTEN"] = "127.0.0.1:8788"
+	env["OPENCROW_HTTP_BEARER_TOKEN"] = "voice-secret"
+	env["OPENCROW_MCP_SESSION_DIR"] = "/tmp/mcp-sessions"
+	env["OPENCROW_PI_COMPACT_ON_IDLE"] = "1"
+
+	cfg, err := loadConfig(testEnv(env))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if cfg.HTTP.MCPBearerToken != "mcp-secret" || cfg.MCPPi.SessionDir != "/tmp/mcp-sessions" || cfg.MCPPi.CompactOnIdle {
+		t.Errorf("MCP config = %+v / %+v", cfg.HTTP, cfg.MCPPi)
+	}
+}
+
 func TestLoadConfig_BackgroundProviderOverrideKeepsChatModel(t *testing.T) {
 	t.Parallel()
 

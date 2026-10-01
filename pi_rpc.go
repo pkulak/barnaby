@@ -124,7 +124,22 @@ func (p *PiProcess) NewSession(ctx context.Context) error {
 		return err
 	}
 
-	return p.waitForNewSessionResponse(ctx)
+	return p.waitForSessionResponse(ctx, "new_session")
+}
+
+// SwitchSession loads an existing session file in the same pi process.
+func (p *PiProcess) SwitchSession(ctx context.Context, sessionPath string) error {
+	if !p.IsAlive() {
+		return errors.New("pi process is not alive")
+	}
+
+	defer p.closeStdinOnCancel(ctx)()
+
+	if err := p.sendCommand(map[string]string{"type": "switch_session", "sessionPath": sessionPath}); err != nil {
+		return err
+	}
+
+	return p.waitForSessionResponse(ctx, "switch_session")
 }
 
 // SessionStats is the subset of get_session_stats the idle reaper uses.
@@ -530,14 +545,15 @@ func (p *PiProcess) waitForCompactResponse(ctx context.Context) (*CompactResult,
 	return result, nil
 }
 
-// waitForNewSessionResponse blocks until pi acknowledges new_session. A
-// response with cancelled=true means an extension vetoed the reset; surface
-// that as an error so the caller can fall back to a fresh process.
-func (p *PiProcess) waitForNewSessionResponse(ctx context.Context) error {
+// waitForSessionResponse blocks until pi acknowledges new_session or
+// switch_session. A response with cancelled=true means an extension vetoed
+// the change; surface that as an error so the caller does not prompt the
+// wrong session.
+func (p *PiProcess) waitForSessionResponse(ctx context.Context, command string) error {
 	var cancelled bool
 
 	err := p.drainEvents(ctx, func(evt rpcEvent) (bool, error) {
-		if evt.Type != rpcTypeResponse || evt.Command != "new_session" {
+		if evt.Type != rpcTypeResponse || evt.Command != command {
 			return false, nil
 		}
 
@@ -561,7 +577,7 @@ func (p *PiProcess) waitForNewSessionResponse(ctx context.Context) error {
 	}
 
 	if cancelled {
-		return errors.New("new session was cancelled by an extension")
+		return fmt.Errorf("%s was cancelled by an extension", command)
 	}
 
 	return nil

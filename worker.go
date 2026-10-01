@@ -26,9 +26,10 @@ const (
 	sourceCompact      = "compact"
 	sourceVoice        = "voice"
 	sourceVoiceCompact = "voice_compact"
+	sourceMCP          = "mcp"
 )
 
-// Worker owns one Pi process and drains chat, background, or voice inbox items.
+// Worker owns one Pi process and drains chat, background, voice, or MCP inbox items.
 type Worker struct {
 	inbox   *InboxStore
 	piCfg   PiConfig
@@ -41,6 +42,8 @@ type Worker struct {
 	background    bool
 	voice         bool
 	voiceService  *VoiceService
+	mcpService    *MCPService
+	mcpSessions   *mcpSessionStore // non-nil only for the MCP worker
 	triggerPrompt string
 
 	// mu protects pi, lastUse, compactResult, currentCancel, currentItemID, and freshStart.
@@ -85,6 +88,14 @@ func NewVoiceWorker(inbox *InboxStore, piCfg PiConfig) *Worker {
 	return worker
 }
 
+// NewMCPWorker creates a worker for MCP requests.
+func NewMCPWorker(inbox *InboxStore, piCfg PiConfig) *Worker {
+	worker := newWorker(inbox, piCfg, "", false)
+	worker.mcpSessions = newMCPSessionStore()
+
+	return worker
+}
+
 func newWorker(inbox *InboxStore, piCfg PiConfig, triggerPrompt string, background bool) *Worker {
 	return &Worker{
 		inbox:         inbox,
@@ -105,6 +116,9 @@ func (w *Worker) SetMatrix(matrixClient workerMatrix) { w.matrix = matrixClient 
 
 // SetVoiceService wires completion routing for a voice worker.
 func (w *Worker) SetVoiceService(service *VoiceService) { w.voiceService = service }
+
+// SetMCPService wires completion routing for an MCP worker.
+func (w *Worker) SetMCPService(service *MCPService) { w.mcpService = service }
 
 // Notify wakes the worker loop after an item is enqueued.
 func (w *Worker) Notify() {
@@ -149,7 +163,7 @@ func (w *Worker) Abort() bool {
 }
 
 // AbortItem cancels the current operation only if it belongs to requestID.
-func (w *Worker) AbortItem(requestID string) bool {
+func (w *Worker) AbortItem(requestID string) {
 	w.mu.Lock()
 	cancel := w.currentCancel
 	matches := cancel != nil && w.currentItemID == requestID
@@ -157,11 +171,7 @@ func (w *Worker) AbortItem(requestID string) bool {
 
 	if matches {
 		cancel()
-
-		return true
 	}
-
-	return false
 }
 
 // IsActive returns true if a pi process is alive.
@@ -406,6 +416,10 @@ func (w *Worker) dequeue(ctx context.Context) (Inbox, error) {
 		return w.inbox.DequeueVoice(ctx)
 	}
 
+	if w.mcpSessions != nil {
+		return w.inbox.DequeueMCP(ctx)
+	}
+
 	return w.inbox.DequeueChat(ctx)
 }
 
@@ -478,6 +492,8 @@ func (w *Worker) processItem(ctx context.Context, item Inbox) bool {
 		w.processCompact(itemCtx)
 	case sourceVoice:
 		w.processVoicePrompt(itemCtx, item)
+	case sourceMCP:
+		w.processMCPRequest(itemCtx, item)
 	default:
 		stopDraining = w.processPrompt(itemCtx, item)
 	}

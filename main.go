@@ -80,14 +80,24 @@ func run() int {
 		return 1
 	}
 
-	b, worker, backgroundWorker, voiceWorker, voiceService, err := wireServices(ctx, cfg, db, inbox)
+	svc, err := wireServices(ctx, cfg, db, inbox)
 	if err != nil {
 		slog.Error("failed to initialize services", "error", err)
 
 		return 1
 	}
 
-	return runServices(ctx, b, worker, backgroundWorker, voiceWorker, voiceService, cancel)
+	return runServices(ctx, svc, cancel)
+}
+
+// services holds the wired Matrix backend, workers, and optional HTTP service.
+type services struct {
+	backend          *matrix.Backend
+	worker           *Worker
+	backgroundWorker *Worker
+	voiceWorker      *Worker
+	mcpWorker        *Worker
+	voiceService     *VoiceService
 }
 
 type serviceResult struct {
@@ -96,18 +106,16 @@ type serviceResult struct {
 }
 
 // runServices starts Matrix, HTTP, and workers, then shuts them down together.
-func runServices(
-	ctx context.Context,
-	b *matrix.Backend,
-	worker, backgroundWorker, voiceWorker *Worker,
-	voiceService *VoiceService,
-	cancel context.CancelFunc,
-) int {
+func runServices(ctx context.Context, svc services, cancel context.CancelFunc) int {
+	b := svc.backend
+	voiceService := svc.voiceService
+
 	setupShutdown(b, cancel)
 
-	workerDone := spawnWorker(ctx, worker)
-	backgroundDone := spawnWorker(ctx, backgroundWorker)
-	voiceWorkerDone := spawnOptionalWorker(ctx, voiceWorker)
+	workerDone := spawnWorker(ctx, svc.worker)
+	backgroundDone := spawnWorker(ctx, svc.backgroundWorker)
+	voiceWorkerDone := spawnOptionalWorker(ctx, svc.voiceWorker)
+	mcpWorkerDone := spawnOptionalWorker(ctx, svc.mcpWorker)
 
 	serviceDone := make(chan serviceResult, 2)
 	serviceCount := 1
@@ -140,6 +148,10 @@ func runServices(
 
 	if voiceWorkerDone != nil {
 		<-voiceWorkerDone
+	}
+
+	if mcpWorkerDone != nil {
+		<-mcpWorkerDone
 	}
 
 	_ = b.Close()
@@ -304,57 +316,75 @@ func wireServices(
 	cfg *Config,
 	db *sql.DB,
 	inbox *InboxStore,
-) (*matrix.Backend, *Worker, *Worker, *Worker, *VoiceService, error) {
+) (services, error) {
 	// Phase 1: create objects with nil cross-references.
-	worker := NewWorker(inbox, cfg.Pi)
-	backgroundWorker := NewBackgroundWorker(inbox, cfg.BackgroundPi, defaultTriggerPrompt)
-
-	var voiceWorker *Worker
-	if cfg.HTTP.Listen != "" {
-		voiceWorker = NewVoiceWorker(inbox, cfg.VoicePi)
+	svc := services{
+		worker:           NewWorker(inbox, cfg.Pi),
+		backgroundWorker: NewBackgroundWorker(inbox, cfg.BackgroundPi, defaultTriggerPrompt),
 	}
 
 	var app *App
 
 	b, err := createMatrixBackend(cfg,
 		func(ctx context.Context, msg matrix.Message) { app.HandleMessage(ctx, msg) },
-		func(_ string) { worker.Restart() },
+		func(_ string) { svc.worker.Restart() },
 	)
 	if err != nil {
-		return nil, nil, nil, nil, nil, err
+		return services{}, err
 	}
+
+	svc.backend = b
 
 	// Phase 2: wire cross-references.
-	app = NewApp(b, worker, inbox, db)
-	app.SetBackgroundWorker(backgroundWorker)
-
-	var voiceService *VoiceService
-	if voiceWorker != nil {
-		voiceService = NewVoiceService(cfg.HTTP, inbox, voiceWorker)
-		app.SetVoice(voiceWorker, voiceService)
-		voiceWorker.SetVoiceService(voiceService)
-	}
+	app = NewApp(b, svc.worker, inbox, db)
+	app.SetBackgroundWorker(svc.backgroundWorker)
+	wireHTTPServices(cfg, inbox, app, &svc)
 
 	if cfg.GroupTriggerRegex != nil {
 		app.SetGroupTriggerRegex(cfg.GroupTriggerRegex)
 	}
 
-	wireWorker(worker, app, b)
-	wireWorker(backgroundWorker, app, b)
-	wireWorker(voiceWorker, app, b)
-	configureWorkerPrompts(app, worker, backgroundWorker, voiceWorker)
-
-	go reminderLoop(ctx, backgroundWorker)
-
-	startTriggerPipe(ctx, backgroundWorker, cfg.Pi.StateDir)
-	worker.StartIdleReaper(ctx)
-	backgroundWorker.StartIdleReaper(ctx)
-
-	if voiceWorker != nil {
-		voiceWorker.StartIdleReaper(ctx)
+	workers := []*Worker{svc.worker, svc.backgroundWorker, svc.voiceWorker, svc.mcpWorker}
+	for _, worker := range workers {
+		wireWorker(worker, app, b)
 	}
 
-	return b, worker, backgroundWorker, voiceWorker, voiceService, nil
+	configureWorkerPrompts(app, svc.worker, svc.backgroundWorker, svc.voiceWorker, svc.mcpWorker)
+
+	go reminderLoop(ctx, svc.backgroundWorker)
+
+	startTriggerPipe(ctx, svc.backgroundWorker, cfg.Pi.StateDir)
+
+	for _, worker := range workers {
+		if worker != nil {
+			worker.StartIdleReaper(ctx)
+		}
+	}
+
+	return svc, nil
+}
+
+// wireHTTPServices creates the optional voice and MCP workers that share the
+// HTTP listener.
+func wireHTTPServices(cfg *Config, inbox *InboxStore, app *App, svc *services) {
+	if cfg.HTTP.Listen == "" {
+		return
+	}
+
+	svc.voiceWorker = NewVoiceWorker(inbox, cfg.VoicePi)
+	svc.voiceService = NewVoiceService(cfg.HTTP, inbox, svc.voiceWorker)
+	app.SetVoice(svc.voiceWorker, svc.voiceService)
+	svc.voiceWorker.SetVoiceService(svc.voiceService)
+
+	if cfg.HTTP.MCPBearerToken == "" {
+		return
+	}
+
+	svc.mcpWorker = NewMCPWorker(inbox, cfg.MCPPi)
+	mcpService := NewMCPService(cfg.HTTP.MCPBearerToken, inbox, svc.mcpWorker, cfg.MCPPi.Skills)
+	svc.mcpWorker.SetMCPService(mcpService)
+	svc.voiceService.SetMCP(mcpService)
+	app.SetMCPWorker(svc.mcpWorker)
 }
 
 func wireWorker(worker *Worker, app *App, backend workerMatrix) {
@@ -366,12 +396,16 @@ func wireWorker(worker *Worker, app *App, backend workerMatrix) {
 	worker.SetMatrix(backend)
 }
 
-func configureWorkerPrompts(app *App, worker, backgroundWorker, voiceWorker *Worker) {
+func configureWorkerPrompts(app *App, worker, backgroundWorker, voiceWorker, mcpWorker *Worker) {
 	worker.piCfg.SystemPrompt = app.systemPrompt(worker.piCfg.SystemPrompt)
 
 	backgroundWorker.piCfg.SystemPrompt = app.systemPrompt(backgroundWorker.piCfg.SystemPrompt)
 	if voiceWorker != nil {
 		voiceWorker.piCfg.SystemPrompt = strings.TrimRight(app.systemPrompt(voiceWorker.piCfg.SystemPrompt), "\n") + "\n\n" + voiceSystemPrompt
+	}
+
+	if mcpWorker != nil {
+		mcpWorker.piCfg.SystemPrompt = strings.TrimRight(app.systemPrompt(mcpWorker.piCfg.SystemPrompt), "\n") + "\n\n" + mcpSystemPrompt
 	}
 }
 

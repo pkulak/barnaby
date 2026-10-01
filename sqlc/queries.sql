@@ -77,8 +77,22 @@ DELETE FROM inbox WHERE source = 'voice' AND message_id = ?;
 -- name: DeleteAllVoiceInbox :exec
 DELETE FROM inbox WHERE source IN ('voice', 'voice_compact');
 
+-- name: DequeueMCPInbox :one
+DELETE FROM inbox
+WHERE id = (
+    SELECT id FROM inbox
+    WHERE source = 'mcp'
+    ORDER BY priority ASC, id ASC
+    LIMIT 1
+)
+RETURNING id, priority, source, content, reply_to, conversation_id,
+          message_id, is_group, claimed_at, created_at;
+
+-- name: DeleteMCPInbox :execrows
+DELETE FROM inbox WHERE source = 'mcp' AND message_id = ?;
+
 -- name: DeleteStaleItems :exec
-DELETE FROM inbox WHERE source IN ('heartbeat', 'compact', 'voice', 'voice_compact');
+DELETE FROM inbox WHERE source IN ('heartbeat', 'compact', 'voice', 'voice_compact', 'mcp');
 
 -- name: CountInbox :one
 SELECT count(*) FROM inbox;

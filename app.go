@@ -116,6 +116,7 @@ type App struct {
 	backgroundWorker  *Worker
 	voiceWorker       *Worker
 	voiceService      *VoiceService
+	mcpWorker         *Worker
 	inbox             *InboxStore
 	outbox            *outboxStore
 	roomContext       *roomContextStore
@@ -147,6 +148,9 @@ func (a *App) SetVoice(worker *Worker, service *VoiceService) {
 	a.voiceService = service
 }
 
+// SetMCPWorker wires the optional MCP worker.
+func (a *App) SetMCPWorker(worker *Worker) { a.mcpWorker = worker }
+
 // SetGroupTriggerRegex configures the regex used to filter unaddressed group messages.
 func (a *App) SetGroupTriggerRegex(re *regexp.Regexp) {
 	a.mu.Lock()
@@ -177,6 +181,8 @@ func (a *App) HandleMessage(ctx context.Context, msg matrix.Message) { //nolint:
 		a.handleVoiceRestart(ctx, msg)
 	case "!voice-compact":
 		a.handleVoiceCompact(ctx, msg)
+	case "!mcp-stop":
+		a.handleMCPStop(ctx, msg)
 	case "!compact":
 		a.handleCompact(ctx, msg)
 	case "!skills":
@@ -197,7 +203,8 @@ func (a *App) handleHelp(ctx context.Context, msg matrix.Message) {
 		"  !background-restart — Restart the background session\n" +
 		"  !voice-stop — Abort the active voice turn\n" +
 		"  !voice-restart — Restart the voice session\n" +
-		"  !voice-compact — Compact the voice session"
+		"  !voice-compact — Compact the voice session\n" +
+		"  !mcp-stop — Abort the active MCP request"
 	a.matrix.SendMessage(ctx, msg.ConversationID, help, "")
 }
 
@@ -236,6 +243,16 @@ func (a *App) handleVoiceStop(ctx context.Context, msg matrix.Message) {
 	}
 
 	a.matrix.SendMessage(ctx, msg.ConversationID, "Aborted voice turn.", "")
+}
+
+func (a *App) handleMCPStop(ctx context.Context, msg matrix.Message) {
+	if a.mcpWorker == nil || !a.mcpWorker.Abort() {
+		a.matrix.SendMessage(ctx, msg.ConversationID, "No active MCP request.", "")
+
+		return
+	}
+
+	a.matrix.SendMessage(ctx, msg.ConversationID, "Aborted MCP request.", "")
 }
 
 func (a *App) handleVoiceRestart(ctx context.Context, msg matrix.Message) {

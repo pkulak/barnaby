@@ -122,6 +122,30 @@ func (s *InboxStore) DeleteAllVoice(ctx context.Context) error {
 	return nil
 }
 
+// EnqueueMCP inserts an ephemeral MCP request keyed by its in-memory call ID.
+func (s *InboxStore) EnqueueMCP(ctx context.Context, callID, content string) error {
+	return s.enqueue(ctx, EnqueueInboxParams{
+		Priority:  PriorityUser,
+		Source:    sourceMCP,
+		Content:   content,
+		MessageID: callID,
+	})
+}
+
+// DequeueMCP removes and returns an MCP item. Returns sql.ErrNoRows if none exist.
+func (s *InboxStore) DequeueMCP(ctx context.Context) (Inbox, error) {
+	return s.queries.DequeueMCPInbox(ctx)
+}
+
+// DeleteMCP removes a queued MCP request by its call ID.
+func (s *InboxStore) DeleteMCP(ctx context.Context, callID string) error {
+	if _, err := s.queries.DeleteMCPInbox(ctx, callID); err != nil {
+		return fmt.Errorf("deleting MCP request: %w", err)
+	}
+
+	return nil
+}
+
 // Requeue re-inserts an interrupted item.
 func (s *InboxStore) Requeue(ctx context.Context, item Inbox) error {
 	if err := s.queries.EnqueueInbox(ctx, EnqueueInboxParams{

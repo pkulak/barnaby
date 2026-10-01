@@ -17,6 +17,7 @@ Send these as plain text messages in any conversation with the bot:
 | `!voice-stop` | Abort the active HTTP voice turn |
 | `!voice-restart` | Clear pending voice turns and start a fresh voice session on the next request |
 | `!voice-compact` | Compact the active voice session |
+| `!mcp-stop` | Abort the active MCP request |
 
 ## General configuration
 
@@ -50,6 +51,20 @@ The endpoint has the same tools and skills as the chat worker. Keep it on a
 trusted network and treat the bearer token as full access to the OpenCrow
 instance. See [Home Assistant voice assistant](voice-assistant.md) for the API,
 queue behavior, Home Assistant component, and security details.
+
+## MCP configuration
+
+The MCP endpoint is disabled unless `OPENCROW_MCP_BEARER_TOKEN` is set. It is
+served at `/mcp` on the HTTP listener, so `OPENCROW_HTTP_LISTEN` is required
+too. Enabling it creates a dedicated MCP worker and Pi process.
+
+| Variable | Default | Description |
+|---|---|---|
+| `OPENCROW_MCP_BEARER_TOKEN` | _(empty)_ | Static bearer token required by `/mcp`. Setting it enables the endpoint. |
+| `OPENCROW_MCP_SESSION_DIR` | `<tmpdir>/opencrow-mcp` | Directory for MCP Pi session files. OpenCrow never deletes them. |
+
+See [MCP endpoint](mcp.md) for the `ask` tool, sessions, queue behavior, and a
+LibreChat example.
 
 ## File handling
 
