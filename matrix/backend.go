@@ -805,6 +805,13 @@ func (b *Backend) handleMessage(ctx context.Context, evt *event.Event) {
 	roomID := string(evt.RoomID)
 	b.trackRoom(roomID)
 
+	// Edits carry a "* "-prefixed fallback body; use the replacement
+	// content and tell the agent it's a correction, not a new message.
+	edited := msg.RelatesTo.GetReplaceID() != "" && msg.NewContent != nil
+	if edited {
+		msg = msg.NewContent
+	}
+
 	text := msg.Body
 
 	slog.Info("received message", "room", roomID, "sender", evt.Sender, "type", msg.MsgType, "len", len(text))
@@ -822,10 +829,11 @@ func (b *Backend) handleMessage(ctx context.Context, evt *event.Event) {
 		}
 	}
 
-	var replyToID string
-	if msg.RelatesTo != nil {
-		replyToID = string(msg.RelatesTo.GetReplyTo())
+	if edited {
+		text = "[user edited an earlier message; updated version:]\n" + text
 	}
+
+	replyToID := string(msg.RelatesTo.GetReplyTo())
 
 	// Enrich the message with room/sender metadata from the cache
 	// (lazy-populated on first access, kept current by sync hooks).
