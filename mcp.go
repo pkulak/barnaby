@@ -161,13 +161,16 @@ func (m *MCPService) ask(ctx context.Context, req *mcp.CallToolRequest, input mc
 	return mcpResult(reply, call.images), nil, nil
 }
 
-// mcpResult returns the reply text, omitted when empty and there are images,
-// followed by the images.
+// mcpResult returns the reply text followed by the images. Image-only replies
+// get a short text, since callers like LibreChat otherwise see an empty result
+// and retry.
 func mcpResult(text string, images []*mcp.ImageContent) *mcp.CallToolResult {
-	var content []mcp.Content
-	if text != "" || len(images) == 0 {
-		content = append(content, &mcp.TextContent{Text: text})
+	if text == "" && len(images) > 0 {
+		text = "Here is the requested image."
 	}
+
+	content := make([]mcp.Content, 0, 1+len(images))
+	content = append(content, &mcp.TextContent{Text: text})
 
 	for _, image := range images {
 		content = append(content, image)

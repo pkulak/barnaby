@@ -336,11 +336,13 @@ func TestMCPAskReturnsSentImages(t *testing.T) { //nolint:cyclop // end-to-end r
 	}
 }
 
-func TestMCPResultOmitsEmptyTextWithImages(t *testing.T) {
+func TestMCPResultDescribesImageOnlyReplies(t *testing.T) {
 	t.Parallel()
 
 	image := &mcp.ImageContent{Data: []byte("x"), MIMEType: "image/png"}
-	if result := mcpResult("", []*mcp.ImageContent{image}); len(result.Content) != 1 || result.Content[0] != image {
+	result := mcpResult("", []*mcp.ImageContent{image})
+
+	if text, ok := result.Content[0].(*mcp.TextContent); len(result.Content) != 2 || !ok || text.Text == "" || result.Content[1] != image {
 		t.Fatalf("result = %+v", result)
 	}
 
