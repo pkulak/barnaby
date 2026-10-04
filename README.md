@@ -5,6 +5,35 @@ A saner alternative to [OpenClaw](https://github.com/openclaw/openclaw).
   <img src="logo.png" width="200" alt="OpenCrow logo">
 </p>
 
+## Fork notes
+
+This is a fork of [pinpox/opencrow](https://github.com/pinpox/opencrow).
+Upstream is built around one-on-one chat. This fork is built for group chats,
+where most messages aren't meant for the bot.
+
+I started by removing everything I didn't use: the Nostr and Signal backends,
+the backend abstraction, the heartbeat, the memory extension, and the bundled
+skills. Matrix is the only transport. Then I added back what group chats need:
+
+- Prompts include the time, sender, and room, and the bot can join several
+  rooms and post to any of them.
+- An optional script decides which group messages go to the agent (see
+  [Group message routing](docs/configuration.md#group-message-routing)).
+  Skipped messages are saved and handed to the agent the next time it's
+  addressed.
+- The agent can react instead of replying, or answer `NO_REPLY` to stay quiet.
+- Reminders and trigger pipes run in their own Pi session, separate from chat.
+  Recurring cron reminders replace the heartbeat.
+
+There's also a Home Assistant voice API and an MCP endpoint, each with its own
+Pi session.
+
+Upstream has moved on since the fork. It now runs
+[omp](https://github.com/can1357/oh-my-pi) instead of pi, and adds a local
+socket backend and Matrix password login. None of that is here.
+
+## README
+
 OpenCrow is a Matrix bot that bridges chat messages to
 [pi](https://github.com/badlogic/pi-mono), a coding agent with built-in tools,
 session persistence, auto-compaction, and multi-provider LLM support. Instead of
