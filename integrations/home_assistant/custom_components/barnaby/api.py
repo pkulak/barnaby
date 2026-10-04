@@ -1,4 +1,4 @@
-"""HTTP client for the OpenCrow voice API."""
+"""HTTP client for the Barnaby voice API."""
 
 from __future__ import annotations
 
@@ -9,24 +9,24 @@ from typing import Any
 from aiohttp import ClientError, ClientSession
 
 
-class OpenCrowError(Exception):
-    """Base OpenCrow API error."""
+class BarnabyError(Exception):
+    """Base Barnaby API error."""
 
 
-class OpenCrowConnectionError(OpenCrowError):
-    """OpenCrow could not be reached."""
+class BarnabyConnectionError(BarnabyError):
+    """Barnaby could not be reached."""
 
 
-class OpenCrowTimeoutError(OpenCrowConnectionError):
-    """OpenCrow did not answer before the client deadline."""
+class BarnabyTimeoutError(BarnabyConnectionError):
+    """Barnaby did not answer before the client deadline."""
 
 
-class OpenCrowAuthError(OpenCrowError):
-    """OpenCrow rejected the bearer token."""
+class BarnabyAuthError(BarnabyError):
+    """Barnaby rejected the bearer token."""
 
 
-class OpenCrowResponseError(OpenCrowError):
-    """OpenCrow returned an error response."""
+class BarnabyResponseError(BarnabyError):
+    """Barnaby returned an error response."""
 
     def __init__(self, status: int, code: str, message: str) -> None:
         """Initialize an API response error."""
@@ -36,15 +36,15 @@ class OpenCrowResponseError(OpenCrowError):
 
 
 @dataclass(frozen=True, slots=True)
-class OpenCrowTurn:
-    """A completed OpenCrow turn."""
+class BarnabyTurn:
+    """A completed Barnaby turn."""
 
     text: str
     delivery: str
 
 
-class OpenCrowClient:
-    """Small async client for an OpenCrow instance."""
+class BarnabyClient:
+    """Small async client for a Barnaby instance."""
 
     def __init__(self, session: ClientSession, base_url: str, token: str) -> None:
         """Initialize the client."""
@@ -56,10 +56,10 @@ class OpenCrowClient:
         """Validate the endpoint and token."""
         return await self._request("GET", "/v1/status", timeout=10)
 
-    async def async_turn(self, payload: dict[str, Any]) -> OpenCrowTurn:
+    async def async_turn(self, payload: dict[str, Any]) -> BarnabyTurn:
         """Run one synchronous conversation turn."""
         response = await self._request("POST", "/v1/turn", json=payload, timeout=95)
-        return OpenCrowTurn(
+        return BarnabyTurn(
             text=str(response.get("text", "")),
             delivery=str(response.get("delivery", "voice")),
         )
@@ -84,30 +84,30 @@ class OpenCrowClient:
                     try:
                         body = await response.json(content_type=None)
                     except ValueError as err:
-                        raise OpenCrowResponseError(
+                        raise BarnabyResponseError(
                             response.status,
                             "invalid_response",
-                            "OpenCrow returned invalid JSON.",
+                            "Barnaby returned invalid JSON.",
                         ) from err
         except TimeoutError as err:
-            raise OpenCrowTimeoutError from err
+            raise BarnabyTimeoutError from err
         except ClientError as err:
-            raise OpenCrowConnectionError from err
+            raise BarnabyConnectionError from err
 
         if response.status == 401:
-            raise OpenCrowAuthError
+            raise BarnabyAuthError
 
         if response.status >= 400:
             error = body.get("error", {}) if isinstance(body, dict) else {}
-            raise OpenCrowResponseError(
+            raise BarnabyResponseError(
                 response.status,
                 str(error.get("code", "unknown_error")),
-                str(error.get("message", "OpenCrow returned an error.")),
+                str(error.get("message", "Barnaby returned an error.")),
             )
 
         if not isinstance(body, dict):
-            raise OpenCrowResponseError(
-                response.status, "invalid_response", "OpenCrow returned invalid JSON."
+            raise BarnabyResponseError(
+                response.status, "invalid_response", "Barnaby returned invalid JSON."
             )
 
         return body

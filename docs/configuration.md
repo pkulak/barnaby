@@ -23,45 +23,45 @@ Send these as plain text messages in any conversation with the bot:
 
 | Variable | Default | Description |
 |---|---|---|
-| `OPENCROW_PI_BINARY` | `pi` | Path to the pi binary |
-| `OPENCROW_PI_SESSION_DIR` | `/var/lib/opencrow/sessions` | Session data directory |
-| `OPENCROW_PI_PROVIDER` | `anthropic` | LLM provider |
-| `OPENCROW_PI_MODEL` | `claude-opus-4-6` | Model name |
-| `OPENCROW_PI_WORKING_DIR` | `/var/lib/opencrow` | Working directory for pi |
-| `OPENCROW_PI_IDLE_TIMEOUT` | `30m` | Kill pi after this duration of inactivity |
-| `OPENCROW_PI_COMPACT_ON_IDLE` | `false` | Compact an idle session before the reaper kills its pi process when it has at least 32k context tokens or an unknown token count. The reap that would make a session's 7th compaction starts a fresh session instead. Background work ignores this. |
-| `OPENCROW_PI_SYSTEM_PROMPT` | built-in | Custom system prompt |
-| `OPENCROW_SOUL_FILE` | _(empty)_ | Path to a file containing the system prompt (overrides `OPENCROW_PI_SYSTEM_PROMPT`) |
-| `OPENCROW_PI_SKILLS` | _(empty)_ | Comma-separated skill directory paths |
-| `OPENCROW_PI_SKILLS_DIR` | _(empty)_ | Directory containing skill subdirectories |
-| `OPENCROW_SHOW_TOOL_CALLS` | `false` | Show tool invocations (bash, read, edit, …) as messages in the chat |
-| `OPENCROW_DEBUG_TIMING` | `false` | Append task duration to each reply (useful for profiling local models) |
+| `BARNABY_PI_BINARY` | `pi` | Path to the pi binary |
+| `BARNABY_PI_SESSION_DIR` | `/var/lib/barnaby/sessions` | Session data directory |
+| `BARNABY_PI_PROVIDER` | `anthropic` | LLM provider |
+| `BARNABY_PI_MODEL` | `claude-opus-4-6` | Model name |
+| `BARNABY_PI_WORKING_DIR` | `/var/lib/barnaby` | Working directory for pi |
+| `BARNABY_PI_IDLE_TIMEOUT` | `30m` | Kill pi after this duration of inactivity |
+| `BARNABY_PI_COMPACT_ON_IDLE` | `false` | Compact an idle session before the reaper kills its pi process when it has at least 32k context tokens or an unknown token count. The reap that would make a session's 7th compaction starts a fresh session instead. Background work ignores this. |
+| `BARNABY_PI_SYSTEM_PROMPT` | built-in | Custom system prompt |
+| `BARNABY_SOUL_FILE` | _(empty)_ | Path to a file containing the system prompt (overrides `BARNABY_PI_SYSTEM_PROMPT`) |
+| `BARNABY_PI_SKILLS` | _(empty)_ | Comma-separated skill directory paths |
+| `BARNABY_PI_SKILLS_DIR` | _(empty)_ | Directory containing skill subdirectories |
+| `BARNABY_SHOW_TOOL_CALLS` | `false` | Show tool invocations (bash, read, edit, …) as messages in the chat |
+| `BARNABY_DEBUG_TIMING` | `false` | Append task duration to each reply (useful for profiling local models) |
 
 ## HTTP voice configuration
 
-The HTTP text-turn API is disabled unless `OPENCROW_HTTP_LISTEN` is set. Enabling
+The HTTP text-turn API is disabled unless `BARNABY_HTTP_LISTEN` is set. Enabling
 it creates a dedicated voice worker and Pi session.
 
 | Variable | Default | Description |
 |---|---|---|
-| `OPENCROW_HTTP_LISTEN` | _(empty)_ | TCP listen address, such as `0.0.0.0:8787`. An empty value disables the HTTP server. |
-| `OPENCROW_HTTP_BEARER_TOKEN` | _(empty)_ | Static bearer token required by `/v1/status` and `/v1/turn`. Required when `OPENCROW_HTTP_LISTEN` is set. |
+| `BARNABY_HTTP_LISTEN` | _(empty)_ | TCP listen address, such as `0.0.0.0:8787`. An empty value disables the HTTP server. |
+| `BARNABY_HTTP_BEARER_TOKEN` | _(empty)_ | Static bearer token required by `/v1/status` and `/v1/turn`. Required when `BARNABY_HTTP_LISTEN` is set. |
 
 The endpoint has the same tools and skills as the chat worker. Keep it on a
-trusted network and treat the bearer token as full access to the OpenCrow
+trusted network and treat the bearer token as full access to the Barnaby
 instance. See [Home Assistant voice assistant](voice-assistant.md) for the API,
 queue behavior, Home Assistant component, and security details.
 
 ## MCP configuration
 
-The MCP endpoint is disabled unless `OPENCROW_MCP_BEARER_TOKEN` is set. It is
-served at `/mcp` on the HTTP listener, so `OPENCROW_HTTP_LISTEN` is required
+The MCP endpoint is disabled unless `BARNABY_MCP_BEARER_TOKEN` is set. It is
+served at `/mcp` on the HTTP listener, so `BARNABY_HTTP_LISTEN` is required
 too. Enabling it creates a dedicated MCP worker and Pi process.
 
 | Variable | Default | Description |
 |---|---|---|
-| `OPENCROW_MCP_BEARER_TOKEN` | _(empty)_ | Static bearer token required by `/mcp`. Setting it enables the endpoint. |
-| `OPENCROW_MCP_SESSION_DIR` | `<tmpdir>/opencrow-mcp` | Directory for MCP Pi session files. OpenCrow never deletes them. |
+| `BARNABY_MCP_BEARER_TOKEN` | _(empty)_ | Static bearer token required by `/mcp`. Setting it enables the endpoint. |
+| `BARNABY_MCP_SESSION_DIR` | `<tmpdir>/barnaby-mcp` | Directory for MCP Pi session files. Barnaby never deletes them. |
 
 See [MCP endpoint](mcp.md) for the `ask` tool, sessions, queue behavior, and a
 LibreChat example.
@@ -82,21 +82,21 @@ Multiple `<sendfile>` tags can appear in a single response.
 
 | Variable | Required | Description |
 |---|---|---|
-| `OPENCROW_MATRIX_HOMESERVER` | Yes | Matrix homeserver URL |
-| `OPENCROW_MATRIX_USER_ID` | Yes | Bot's Matrix user ID |
-| `OPENCROW_MATRIX_ACCESS_TOKEN` | Yes | Access token (via environment file) |
-| `OPENCROW_MATRIX_DEVICE_ID` | No | Device ID (auto-resolved if omitted) |
-| `OPENCROW_MATRIX_PICKLE_KEY` | No | Pickle key for crypto DB |
-| `OPENCROW_MATRIX_CRYPTO_DB` | No | Path to crypto SQLite DB |
-| `OPENCROW_MATRIX_ROOM_ID` | No | Default Matrix room ID for triggers and reminders. When set, Matrix invite handling also switches to multi-room mode. |
-| `OPENCROW_ALLOWED_USERS` | No | Comma-separated Matrix user IDs allowed to interact |
+| `BARNABY_MATRIX_HOMESERVER` | Yes | Matrix homeserver URL |
+| `BARNABY_MATRIX_USER_ID` | Yes | Bot's Matrix user ID |
+| `BARNABY_MATRIX_ACCESS_TOKEN` | Yes | Access token (via environment file) |
+| `BARNABY_MATRIX_DEVICE_ID` | No | Device ID (auto-resolved if omitted) |
+| `BARNABY_MATRIX_PICKLE_KEY` | No | Pickle key for crypto DB |
+| `BARNABY_MATRIX_CRYPTO_DB` | No | Path to crypto SQLite DB |
+| `BARNABY_MATRIX_ROOM_ID` | No | Default Matrix room ID for triggers and reminders. When set, Matrix invite handling also switches to multi-room mode. |
+| `BARNABY_ALLOWED_USERS` | No | Comma-separated Matrix user IDs allowed to interact |
 
 ### Matrix room behavior
 
 By default, Matrix runs in **single-room mode**: the bot joins the first
 allowed room it is invited to and ignores later invites.
 
-If `OPENCROW_MATRIX_ROOM_ID` is set, Matrix switches to **multi-room mode**.
+If `BARNABY_MATRIX_ROOM_ID` is set, Matrix switches to **multi-room mode**.
 Two things happen:
 
 1. triggers and reminders are routed to that room by default
@@ -108,7 +108,7 @@ background session. `!restart`, `!stop`, and `!compact` affect chat; use
 `!background-restart` and `!background-stop` for the background session.
 
 The sessions are separate, but the chat worker still sees relevant room activity.
-OpenCrow saves unaddressed group messages and background-worker replies per room,
+Barnaby saves unaddressed group messages and background-worker replies per room,
 then prepends them when chat is next activated. Downloaded attachments include
 their local path, so you can post a photo and ask about it in a later mention.
 Direct replies are quoted once rather than duplicated in the recent-room block.
@@ -117,14 +117,14 @@ Pending room context survives restarts and is bounded to the newest 64 messages
 and 64 KiB. The prompt says when older messages were omitted. This is a hard
 cutoff, not an AI-generated summary.
 
-Only allowed senders contribute room context. If `OPENCROW_ALLOWED_USERS` is
+Only allowed senders contribute room context. If `BARNABY_ALLOWED_USERS` is
 unset, everyone is allowed; set it when other room members should not be able to
 influence the agent's context or send it attachments.
 
 ### Group message routing
 
 By default, every group message goes to the agent. Set
-`OPENCROW_GROUP_TRIGGER_SCRIPT` to an executable that decides which ones should.
+`BARNABY_GROUP_TRIGGER_SCRIPT` to an executable that decides which ones should.
 DMs and `!commands` never go through it.
 
 The script gets the room's recent messages and the current one as JSON on stdin:
@@ -153,24 +153,24 @@ that asks Jev.
 
 Any other exit code, or running longer than 10 seconds, is logged as a warning
 and the message goes to the agent anyway. A broken script makes the bot chatty,
-not deaf. The script runs inline, so a slow one delays every room. OpenCrow
+not deaf. The script runs inline, so a slow one delays every room. Barnaby
 refuses to start if the path isn't executable.
 
 ## Pi configuration
 
-`OPENCROW_BACKGROUND_PI_PROVIDER` and `OPENCROW_BACKGROUND_PI_MODEL` optionally
+`BARNABY_BACKGROUND_PI_PROVIDER` and `BARNABY_BACKGROUND_PI_MODEL` optionally
 override the provider and model used for reminders and external triggers. Each
-falls back to the corresponding `OPENCROW_PI_*` setting. Background work keeps
+falls back to the corresponding `BARNABY_PI_*` setting. Background work keeps
 its own Pi process but shares the normal working directory, tools, and skills,
 and resets the session before every run so each trigger starts with empty
 context.
 
-Background session files live in `OPENCROW_BACKGROUND_PI_SESSION_DIR`, which
-defaults to `<tmpdir>/opencrow-background`. They are disposable and age out with
+Background session files live in `BARNABY_BACKGROUND_PI_SESSION_DIR`, which
+defaults to `<tmpdir>/barnaby-background`. They are disposable and age out with
 normal `/tmp` cleanup.
 
 When the HTTP listener is enabled, voice turns use another Pi session under
-`<OPENCROW_PI_SESSION_DIR>/voice`. The voice worker inherits the chat provider,
+`<BARNABY_PI_SESSION_DIR>/voice`. The voice worker inherits the chat provider,
 model, soul, working directory, tools, and skills. Its context remains separate
 from both chat and background work.
 
@@ -186,11 +186,11 @@ API keys don't expire and are the simplest approach.
 
 **Option B: OAuth (Claude Pro/Max)** — pi supports OAuth against your Anthropic
 account, so you can use your subscription instead of API credits. The NixOS
-module installs an `opencrow-pi` wrapper on the host that runs pi inside the
+module installs a `barnaby-pi` wrapper on the host that runs pi inside the
 container with the correct environment. To authenticate:
 
 ```bash
-sudo opencrow-pi auth login
+sudo barnaby-pi auth login
 ```
 
 Pi will print a URL — open it in any browser, complete the Anthropic login, and
@@ -205,7 +205,7 @@ For secrets that are plain key=value pairs (e.g. API keys, access tokens), use
 loaded by systemd's `EnvironmentFile=` directive before the service starts:
 
 ```nix
-services.opencrow.environmentFiles = [
-  /run/secrets/opencrow-env  # contains ANTHROPIC_API_KEY=sk-...
+services.barnaby.environmentFiles = [
+  /run/secrets/barnaby-env  # contains ANTHROPIC_API_KEY=sk-...
 ];
 ```

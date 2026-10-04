@@ -84,9 +84,9 @@ func StartPi(cfg PiConfig, roomID string, fresh bool) (*PiProcess, error) {
 	cmd := exec.CommandContext(context.Background(), cfg.BinaryPath, args...) //nolint:gosec // binary path is from trusted config
 	cmd.Dir = cfg.WorkingDir
 
-	cmd.Env = append(os.Environ(), "OPENCROW_SESSION_DIR="+stateDir)
+	cmd.Env = append(os.Environ(), "BARNABY_SESSION_DIR="+stateDir)
 	// Own process group + Pdeathsig: Kill must take down tool
-	// subprocesses too, and pi must not outlive opencrow even if Kill
+	// subprocesses too, and pi must not outlive barnaby even if Kill
 	// never runs. See configurePiSysProcAttr.
 	configurePiSysProcAttr(cmd)
 

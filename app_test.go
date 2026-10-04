@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/pinpox/opencrow/matrix"
+	"github.com/pkulak/barnaby/matrix"
 )
 
 const (

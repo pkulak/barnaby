@@ -1,5 +1,5 @@
 {
-  description = "OpenCrow - Personal AI assistent connecting via Matrix";
+  description = "Barnaby - Personal AI assistent connecting via Matrix";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -28,9 +28,9 @@
           pkgs = nixpkgs.legacyPackages.${system};
         in
         {
-          opencrow = pkgs.callPackage ./nix/package.nix { };
+          barnaby = pkgs.callPackage ./nix/package.nix { };
           extension-reminders = pkgs.callPackage ./nix/extension-reminders.nix { };
-          default = self.packages.${system}.opencrow;
+          default = self.packages.${system}.barnaby;
         }
       );
 
@@ -49,7 +49,7 @@
         in
         {
           default = pkgs.mkShell {
-            inputsFrom = [ self.packages.${system}.opencrow ];
+            inputsFrom = [ self.packages.${system}.barnaby ];
             packages = [
               pkgs.golangci-lint
               pkgs.sqlc
@@ -66,7 +66,7 @@
         {
           formatting = (treefmt-nix.lib.evalModule pkgs ./nix/treefmt.nix).config.build.check self;
 
-          golangci-lint = self.packages.${system}.opencrow.overrideAttrs (old: {
+          golangci-lint = self.packages.${system}.barnaby.overrideAttrs (old: {
             nativeBuildInputs = old.nativeBuildInputs ++ [ pkgs.golangci-lint ];
             outputs = [ "out" ];
             buildPhase = ''

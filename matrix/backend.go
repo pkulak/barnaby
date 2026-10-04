@@ -1,4 +1,4 @@
-// Package matrix implements Matrix messaging for OpenCrow.
+// Package matrix implements Matrix messaging for Barnaby.
 package matrix
 
 import (
@@ -149,7 +149,7 @@ type roomState struct {
 	members map[id.UserID]string // joined user → display name (may be "")
 }
 
-// Backend connects Matrix to the OpenCrow core.
+// Backend connects Matrix to the Barnaby core.
 type Backend struct {
 	client        *mautrix.Client
 	cryptoHelper  *cryptohelper.CryptoHelper
@@ -430,7 +430,7 @@ func (b *Backend) setupCrypto(ctx context.Context) error {
 		}
 
 		if resp.DeviceID == "" {
-			return errors.New("server did not return a device ID; set OPENCROW_MATRIX_DEVICE_ID")
+			return errors.New("server did not return a device ID; set BARNABY_MATRIX_DEVICE_ID")
 		}
 
 		b.client.DeviceID = resp.DeviceID

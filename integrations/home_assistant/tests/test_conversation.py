@@ -1,4 +1,4 @@
-"""Tests for the OpenCrow conversation entity."""
+"""Tests for the Barnaby conversation entity."""
 
 from __future__ import annotations
 
@@ -8,22 +8,22 @@ import unittest
 from homeassistant.components import conversation
 from homeassistant.core import Context
 
-from custom_components.opencrow.api import OpenCrowResponseError, OpenCrowTurn
-from custom_components.opencrow.conversation import (
-    OpenCrowConversationEntity,
+from custom_components.barnaby.api import BarnabyResponseError, BarnabyTurn
+from custom_components.barnaby.conversation import (
+    BarnabyConversationEntity,
     _speech_for_response_error,
 )
 
 
 class FakeClient:
-    """Capture one OpenCrow turn."""
+    """Capture one Barnaby turn."""
 
     def __init__(self) -> None:
         self.payload: dict[str, object] | None = None
 
-    async def async_turn(self, payload: dict[str, object]) -> OpenCrowTurn:
+    async def async_turn(self, payload: dict[str, object]) -> BarnabyTurn:
         self.payload = payload
-        return OpenCrowTurn(text="The lights are on.", delivery="voice")
+        return BarnabyTurn(text="The lights are on.", delivery="voice")
 
 
 class FakeChatLog:
@@ -38,14 +38,14 @@ class FakeChatLog:
         self.content = content
 
 
-class OpenCrowConversationTest(unittest.IsolatedAsyncioTestCase):
+class BarnabyConversationTest(unittest.IsolatedAsyncioTestCase):
     """Exercise HA request and response mapping."""
 
     async def test_turn_mapping(self) -> None:
-        """HA metadata reaches OpenCrow and speech returns to HA."""
+        """HA metadata reaches Barnaby and speech returns to HA."""
         client = FakeClient()
         entry = SimpleNamespace(entry_id="entry", runtime_data=client)
-        entity = OpenCrowConversationEntity(entry)
+        entity = BarnabyConversationEntity(entry)
         chat_log = FakeChatLog()
         user_input = conversation.ConversationInput(
             text="Turn on the lights",
@@ -54,7 +54,7 @@ class OpenCrowConversationTest(unittest.IsolatedAsyncioTestCase):
             device_id=None,
             satellite_id=None,
             language="en",
-            agent_id="conversation.opencrow",
+            agent_id="conversation.barnaby",
         )
 
         result = await entity._async_handle_message(user_input, chat_log)
@@ -79,15 +79,15 @@ class OpenCrowConversationTest(unittest.IsolatedAsyncioTestCase):
     async def test_friendly_errors(self) -> None:
         """Server failures become short spoken messages."""
         self.assertEqual(
-            _speech_for_response_error(OpenCrowResponseError(429, "queue_full", "")),
+            _speech_for_response_error(BarnabyResponseError(429, "queue_full", "")),
             "I'm already handling another request. Try again in a moment.",
         )
         self.assertEqual(
-            _speech_for_response_error(OpenCrowResponseError(504, "timeout", "")),
+            _speech_for_response_error(BarnabyResponseError(504, "timeout", "")),
             "That took too long, so I stopped.",
         )
         self.assertEqual(
-            _speech_for_response_error(OpenCrowResponseError(502, "agent_failed", "")),
+            _speech_for_response_error(BarnabyResponseError(502, "agent_failed", "")),
             "I couldn't complete that request.",
         )
 

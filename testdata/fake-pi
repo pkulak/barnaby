@@ -2,7 +2,7 @@
 # Invoked as `bash testdata/fake-pi` (see PiConfig.BinaryArgs); no exec bit needed.
 # shellcheck shell=bash
 set -eu
-printf '%s' "$*" > "$OPENCROW_SESSION_DIR/pi.args"
+printf '%s' "$*" > "$BARNABY_SESSION_DIR/pi.args"
 
 case "$*" in
   *--never-read*)
@@ -20,7 +20,7 @@ while IFS= read -r line; do
       case "$line" in
         *spawn-child*)
           sleep 300 &
-          printf '%s' "$!" > "$OPENCROW_SESSION_DIR/child.pid"
+          printf '%s' "$!" > "$BARNABY_SESSION_DIR/child.pid"
           ;;
       esac
       printf '%s\n' '{"type":"response","command":"prompt","success":true}'
@@ -36,7 +36,7 @@ while IFS= read -r line; do
           continue
           ;;
         *mcp-image-test*)
-          printf '%s\n' "{\"type\":\"agent_end\",\"messages\":[{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Here it is<sendfile>$OPENCROW_SESSION_DIR/image.png</sendfile><sendfile>$OPENCROW_SESSION_DIR/notes.txt</sendfile>\"}],\"stopReason\":\"end_turn\"}]}"
+          printf '%s\n' "{\"type\":\"agent_end\",\"messages\":[{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Here it is<sendfile>$BARNABY_SESSION_DIR/image.png</sendfile><sendfile>$BARNABY_SESSION_DIR/notes.txt</sendfile>\"}],\"stopReason\":\"end_turn\"}]}"
           continue
           ;;
         *tool-use-test*)
@@ -72,23 +72,23 @@ while IFS= read -r line; do
       printf '%s\n' '{"type":"agent_end","messages":[{"role":"assistant","content":[{"type":"text","text":"ok"}],"stopReason":"end_turn"}]}'
       ;;
     *'"type":"compact"'*|*'"type": "compact"'*)
-      printf '%s\n' 'compact' >> "$OPENCROW_SESSION_DIR/compact.log"
+      printf '%s\n' 'compact' >> "$BARNABY_SESSION_DIR/compact.log"
       printf '%s\n' '{"type":"response","command":"compact","success":true,"data":{"tokensBefore":1,"summary":"s"}}'
       ;;
     *'"type":"get_session_stats"'*|*'"type": "get_session_stats"'*)
-      tokens=$(cat "$OPENCROW_SESSION_DIR/context_tokens" 2>/dev/null || echo 0)
-      session_file=${current_session:-$OPENCROW_SESSION_DIR/session.jsonl}
+      tokens=$(cat "$BARNABY_SESSION_DIR/context_tokens" 2>/dev/null || echo 0)
+      session_file=${current_session:-$BARNABY_SESSION_DIR/session.jsonl}
       printf '%s\n' "{\"type\":\"response\",\"command\":\"get_session_stats\",\"success\":true,\"data\":{\"sessionFile\":\"$session_file\",\"contextUsage\":{\"tokens\":$tokens,\"contextWindow\":200000,\"percent\":10}}}"
       ;;
     *'"type":"new_session"'*|*'"type": "new_session"'*)
-      printf '%s\n' 'new_session' >> "$OPENCROW_SESSION_DIR/new_session.log"
+      printf '%s\n' 'new_session' >> "$BARNABY_SESSION_DIR/new_session.log"
       # Each new session gets a distinct file so MCP tests can tell them apart.
-      current_session="$OPENCROW_SESSION_DIR/session-$(wc -l < "$OPENCROW_SESSION_DIR/new_session.log" | tr -d ' ').jsonl"
+      current_session="$BARNABY_SESSION_DIR/session-$(wc -l < "$BARNABY_SESSION_DIR/new_session.log" | tr -d ' ').jsonl"
       printf '%s\n' '{"type":"response","command":"new_session","success":true,"data":{"cancelled":false}}'
       ;;
     *'"type":"switch_session"'*)
       current_session=$(printf '%s' "$line" | sed 's/.*"sessionPath":"\([^"]*\)".*/\1/')
-      printf '%s\n' "$current_session" >> "$OPENCROW_SESSION_DIR/switch_session.log"
+      printf '%s\n' "$current_session" >> "$BARNABY_SESSION_DIR/switch_session.log"
       case "$current_session" in
         *cancel-switch*)
           printf '%s\n' '{"type":"response","command":"switch_session","success":true,"data":{"cancelled":true}}'

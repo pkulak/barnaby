@@ -1,4 +1,4 @@
-"""Conversation entity for OpenCrow."""
+"""Conversation entity for Barnaby."""
 
 from __future__ import annotations
 
@@ -12,12 +12,12 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, intent
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from . import OpenCrowConfigEntry
+from . import BarnabyConfigEntry
 from .api import (
-    OpenCrowAuthError,
-    OpenCrowConnectionError,
-    OpenCrowResponseError,
-    OpenCrowTimeoutError,
+    BarnabyAuthError,
+    BarnabyConnectionError,
+    BarnabyResponseError,
+    BarnabyTimeoutError,
 )
 from .const import DEFAULT_NAME
 
@@ -26,24 +26,24 @@ _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: OpenCrowConfigEntry,
+    entry: BarnabyConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    """Set up the OpenCrow conversation entity."""
-    async_add_entities([OpenCrowConversationEntity(entry)])
+    """Set up the Barnaby conversation entity."""
+    async_add_entities([BarnabyConversationEntity(entry)])
 
 
-class OpenCrowConversationEntity(
+class BarnabyConversationEntity(
     conversation.ConversationEntity,
     conversation.AbstractConversationAgent,
 ):
-    """OpenCrow conversation agent."""
+    """Barnaby conversation agent."""
 
     _attr_has_entity_name = True
     _attr_name = DEFAULT_NAME
     _attr_supported_features = conversation.ConversationEntityFeature.CONTROL
 
-    def __init__(self, entry: OpenCrowConfigEntry) -> None:
+    def __init__(self, entry: BarnabyConfigEntry) -> None:
         """Initialize the conversation entity."""
         self._entry = entry
         self._attr_unique_id = entry.entry_id
@@ -51,7 +51,7 @@ class OpenCrowConversationEntity(
     @property
     @override
     def supported_languages(self) -> list[str] | Literal["*"]:
-        """Return the languages supported by OpenCrow."""
+        """Return the languages supported by Barnaby."""
         return MATCH_ALL
 
     @override
@@ -72,7 +72,7 @@ class OpenCrowConversationEntity(
         user_input: conversation.ConversationInput,
         chat_log: conversation.ChatLog,
     ) -> conversation.ConversationResult:
-        """Forward one text turn to OpenCrow."""
+        """Forward one text turn to Barnaby."""
         payload = {
             "request_id": str(uuid4()),
             "text": user_input.text,
@@ -82,20 +82,20 @@ class OpenCrowConversationEntity(
         try:
             turn = await self._entry.runtime_data.async_turn(payload)
             speech = turn.text
-        except OpenCrowResponseError as err:
+        except BarnabyResponseError as err:
             _LOGGER.warning(
-                "OpenCrow rejected a voice turn: %s (%s)", err.code, err.status
+                "Barnaby rejected a voice turn: %s (%s)", err.code, err.status
             )
             speech = _speech_for_response_error(err)
-        except OpenCrowAuthError:
-            _LOGGER.error("OpenCrow rejected the configured bearer token")
-            speech = "OpenCrow's authentication needs to be fixed."
-        except OpenCrowTimeoutError:
-            _LOGGER.warning("OpenCrow did not answer before the client deadline")
+        except BarnabyAuthError:
+            _LOGGER.error("Barnaby rejected the configured bearer token")
+            speech = "Barnaby's authentication needs to be fixed."
+        except BarnabyTimeoutError:
+            _LOGGER.warning("Barnaby did not answer before the client deadline")
             speech = "That took too long, so I stopped."
-        except OpenCrowConnectionError:
-            _LOGGER.warning("OpenCrow could not be reached")
-            speech = "I can't reach OpenCrow right now."
+        except BarnabyConnectionError:
+            _LOGGER.warning("Barnaby could not be reached")
+            speech = "I can't reach Barnaby right now."
 
         chat_log.async_add_assistant_content_without_tools(
             conversation.AssistantContent(
@@ -133,7 +133,7 @@ class OpenCrowConversationEntity(
         return {key: value for key, value in values.items() if value is not None}
 
 
-def _speech_for_response_error(err: OpenCrowResponseError) -> str:
+def _speech_for_response_error(err: BarnabyResponseError) -> str:
     """Turn API failures into short spoken responses."""
     if err.status == 429:
         return "I'm already handling another request. Try again in a moment."

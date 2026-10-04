@@ -2,17 +2,17 @@
 
 Pi supports [extensions](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/extensions.md)
 — TypeScript modules that hook into the agent lifecycle, register custom tools,
-and modify behavior. OpenCrow passes extension paths to pi via a generated
+and modify behavior. Barnaby passes extension paths to pi via a generated
 `settings.json` in `PI_CODING_AGENT_DIR`.
 
 ## NixOS module
 
 The NixOS module provides a declarative `extensions` option. Set a value to
-`true` to enable a packaged extension that ships with the opencrow flake, or
+`true` to enable a packaged extension that ships with the barnaby flake, or
 pass a path for a custom extension:
 
 ```nix
-services.opencrow.extensions = {
+services.barnaby.extensions = {
   reminders = true;                  # packaged extension (resolved from flake)
   my-ext = ./extensions/my-ext.ts;   # custom extension
 };
@@ -26,7 +26,7 @@ Extra keys for pi's `settings.json` (e.g. `packages`, `compaction`) can be
 added via `piSettings`:
 
 ```nix
-services.opencrow.piSettings = {
+services.barnaby.piSettings = {
   compaction.enabled = true;
 };
 ```
@@ -40,7 +40,7 @@ The SQLite binary is patched into the extension at build time, so it does not
 need to be added to `extraPackages`.
 
 ```nix
-services.opencrow.extensions.reminders = true;
+services.barnaby.extensions.reminders = true;
 ```
 
 See [Reminders](reminders.md) for usage details and

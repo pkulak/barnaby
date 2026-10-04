@@ -167,7 +167,7 @@ func (v *VoiceService) Run(ctx context.Context) error {
 		<-shutdownDone
 	}
 
-	v.failAll(&voiceError{Status: http.StatusServiceUnavailable, Code: "shutting_down", Message: "OpenCrow is shutting down."})
+	v.failAll(&voiceError{Status: http.StatusServiceUnavailable, Code: "shutting_down", Message: "Barnaby is shutting down."})
 
 	if v.mcp != nil {
 		v.mcp.failAll(errMCPShuttingDown)
@@ -391,7 +391,7 @@ func (v *VoiceService) reserveCall(request VoiceRequest) (*voiceCall, bool, *voi
 	}
 
 	if pending >= voiceMaxPending {
-		return nil, false, &voiceError{Status: http.StatusTooManyRequests, Code: "queue_full", Message: "OpenCrow is already handling too many voice requests."}
+		return nil, false, &voiceError{Status: http.StatusTooManyRequests, Code: "queue_full", Message: "Barnaby is already handling too many voice requests."}
 	}
 
 	call := &voiceCall{

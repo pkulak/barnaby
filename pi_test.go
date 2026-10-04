@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// Event sequences taken from opencrow's journald on eve while Janet's
+// Event sequences taken from barnaby's journald on eve while Janet's
 // session was wedged past the long-context limit. The bug this pins
 // down: returning on the first error agent_end meant we re-prompted
 // while pi was still in its retry loop, hitting "already processing"

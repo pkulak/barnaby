@@ -5,7 +5,7 @@ providing instructions and examples for specific tasks. Each skill is a director
 containing a `SKILL.md` file with a YAML frontmatter (`name`, `description`) and
 the skill's instructions.
 
-OpenCrow does not enable any skills by default. Add only the skill directories
+Barnaby does not enable any skills by default. Add only the skill directories
 you want the agent to see.
 
 ## NixOS module
@@ -14,14 +14,14 @@ The NixOS module provides a declarative `skills` option — an attrset mapping
 skill names to directories:
 
 ```nix
-services.opencrow.skills = {
+services.barnaby.skills = {
   kagi-search = "${mics-skills}/skills/kagi-search";
   my-custom-skill = ./skills/my-custom-skill;
 };
 ```
 
 All entries are assembled into a single directory via `linkFarm` and passed to
-pi through `OPENCROW_PI_SKILLS_DIR`. The attrset is mergeable, so skills can be
+pi through `BARNABY_PI_SKILLS_DIR`. The attrset is mergeable, so skills can be
 added from multiple NixOS module files.
 
 ## Environment variables
@@ -29,12 +29,12 @@ added from multiple NixOS module files.
 When not using the NixOS module, configure skills via environment variables:
 
 ```
-OPENCROW_PI_SKILLS=/path/to/skill1,/path/to/skill2
-OPENCROW_PI_SKILLS_DIR=/path/to/skills-directory
+BARNABY_PI_SKILLS=/path/to/skill1,/path/to/skill2
+BARNABY_PI_SKILLS_DIR=/path/to/skills-directory
 ```
 
-`OPENCROW_PI_SKILLS` is a comma-separated list of individual skill directories.
-`OPENCROW_PI_SKILLS_DIR` points to a directory whose subdirectories are scanned
+`BARNABY_PI_SKILLS` is a comma-separated list of individual skill directories.
+`BARNABY_PI_SKILLS_DIR` points to a directory whose subdirectories are scanned
 for `SKILL.md` files. Both can be used together.
 
 ## Writing a skill

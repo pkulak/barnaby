@@ -1,6 +1,6 @@
 # Reminders
 
-OpenCrow has one-shot and recurring reminders. Both are delivered through the background agent session, separately from chat, and use a one-minute scheduler.
+Barnaby has one-shot and recurring reminders. Both are delivered through the background agent session, separately from chat, and use a one-minute scheduler.
 
 Enable the bundled `reminders` Pi extension to give the agent structured tools:
 
@@ -21,20 +21,20 @@ timezone: America/Los_Angeles
 
 This fires every Monday at noon Pacific time. Cron fields are `minute hour day-of-month month day-of-week`. When both day fields are restricted, either one can match.
 
-Recurring reminders are deliberately loose scheduling. Missed or failed occurrences are not retried, and downtime does not produce catch-up reminders. Before a recurring occurrence is queued, OpenCrow counts queued background triggers; it skips the occurrence when there are already five. One-shot reminders and trigger-pipe events are not capped.
+Recurring reminders are deliberately loose scheduling. Missed or failed occurrences are not retried, and downtime does not produce catch-up reminders. Before a recurring occurrence is queued, Barnaby counts queued background triggers; it skips the occurrence when there are already five. One-shot reminders and trigger-pipe events are not capped.
 
 Canceling or reaching the optional inclusive end time deletes a recurring series. An occurrence already queued when the series is canceled may still run.
 
 ## Background session
 
-Reminders and trigger-pipe events share one background Pi process, but every run starts with empty context: OpenCrow resets the session before each trigger. The background session is independent from chat and has the same working directory, tools, skills, and system prompt. Set these optional overrides to use a cheaper model for background work:
+Reminders and trigger-pipe events share one background Pi process, but every run starts with empty context: Barnaby resets the session before each trigger. The background session is independent from chat and has the same working directory, tools, skills, and system prompt. Set these optional overrides to use a cheaper model for background work:
 
-- `OPENCROW_BACKGROUND_PI_PROVIDER`
-- `OPENCROW_BACKGROUND_PI_MODEL`
+- `BARNABY_BACKGROUND_PI_PROVIDER`
+- `BARNABY_BACKGROUND_PI_MODEL`
 
-Each falls back to its `OPENCROW_PI_*` equivalent. Background tool calls and infrastructure errors are logged rather than sent to Matrix. Normal replies still go to Matrix; `NO_REPLY` remains silent.
+Each falls back to its `BARNABY_PI_*` equivalent. Background tool calls and infrastructure errors are logged rather than sent to Matrix. Normal replies still go to Matrix; `NO_REPLY` remains silent.
 
-Each run is written to its own session file under a temp directory (`OPENCROW_BACKGROUND_PI_SESSION_DIR`, default `<tmpdir>/opencrow-background`). Because the context resets per run, a file contains just that run, which makes recent runs easy to inspect. The files are disposable and age out with normal `/tmp` cleanup (about ten days). In the NixOS container `/tmp` is a bind mount of the state directory's `tmp/`, so the files are visible on the host and the `session -b` helper opens the most recent run.
+Each run is written to its own session file under a temp directory (`BARNABY_BACKGROUND_PI_SESSION_DIR`, default `<tmpdir>/barnaby-background`). Because the context resets per run, a file contains just that run, which makes recent runs easy to inspect. The files are disposable and age out with normal `/tmp` cleanup (about ten days). In the NixOS container `/tmp` is a bind mount of the state directory's `tmp/`, so the files are visible on the host and the `session -b` helper opens the most recent run.
 
 Use `!background-stop` to abort the active background task. `!background-restart` kills the background process; the next task would start fresh anyway. Both leave chat and queued reminders alone.
 
@@ -46,12 +46,12 @@ External processes can wake the background agent by writing to the session direc
 <session-dir>/trigger.pipe
 ```
 
-Each line is a separate trigger. The pipe is unauthenticated: any process that can write to it can inject prompts into Pi, which has full tool access. The FIFO is mode `0664`, so make sure only trusted processes are in the `opencrow` group.
+Each line is a separate trigger. The pipe is unauthenticated: any process that can write to it can inject prompts into Pi, which has full tool access. The FIFO is mode `0664`, so make sure only trusted processes are in the `barnaby` group.
 
 ### Enabling on NixOS
 
 ```nix
-services.opencrow.extensions.reminders = true;
+services.barnaby.extensions.reminders = true;
 ```
 
 This pulls the flake's `extension-reminders` package, which bakes the `sqlite3` store path into the extension. For non-Nix installs the extension falls back to PATH lookup, so make sure `sqlite3` is available there.

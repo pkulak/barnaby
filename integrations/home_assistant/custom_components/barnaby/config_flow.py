@@ -1,4 +1,4 @@
-"""Config flow for OpenCrow."""
+"""Config flow for Barnaby."""
 
 from __future__ import annotations
 
@@ -13,18 +13,18 @@ from homeassistant.const import CONF_URL
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import (
-    OpenCrowAuthError,
-    OpenCrowClient,
-    OpenCrowConnectionError,
-    OpenCrowResponseError,
+    BarnabyAuthError,
+    BarnabyClient,
+    BarnabyConnectionError,
+    BarnabyResponseError,
 )
 from .const import CONF_TOKEN, DEFAULT_NAME, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
 
-class OpenCrowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Configure an OpenCrow conversation agent."""
+class BarnabyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+    """Configure a Barnaby conversation agent."""
 
     VERSION = 1
 
@@ -37,16 +37,16 @@ class OpenCrowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             url = str(user_input[CONF_URL]).rstrip("/")
             token = str(user_input[CONF_TOKEN])
-            client = OpenCrowClient(async_get_clientsession(self.hass), url, token)
+            client = BarnabyClient(async_get_clientsession(self.hass), url, token)
 
             try:
                 await client.async_status()
-            except OpenCrowAuthError:
+            except BarnabyAuthError:
                 errors["base"] = "invalid_auth"
-            except (OpenCrowConnectionError, OpenCrowResponseError):
+            except (BarnabyConnectionError, BarnabyResponseError):
                 errors["base"] = "cannot_connect"
             except Exception:  # noqa: BLE001
-                _LOGGER.exception("Unexpected error validating OpenCrow")
+                _LOGGER.exception("Unexpected error validating Barnaby")
                 errors["base"] = "unknown"
             else:
                 await self.async_set_unique_id(url)

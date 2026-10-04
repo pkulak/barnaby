@@ -1,4 +1,4 @@
-"""Tests for the OpenCrow Home Assistant API client."""
+"""Tests for the Barnaby Home Assistant API client."""
 
 from __future__ import annotations
 
@@ -6,14 +6,14 @@ import unittest
 
 from aiohttp import ClientSession, web
 
-from custom_components.opencrow.api import (
-    OpenCrowAuthError,
-    OpenCrowClient,
-    OpenCrowResponseError,
+from custom_components.barnaby.api import (
+    BarnabyAuthError,
+    BarnabyClient,
+    BarnabyResponseError,
 )
 
 
-class OpenCrowClientTest(unittest.IsolatedAsyncioTestCase):
+class BarnabyClientTest(unittest.IsolatedAsyncioTestCase):
     """Exercise the JSON contract without a Home Assistant runtime."""
 
     async def asyncSetUp(self) -> None:
@@ -30,7 +30,7 @@ class OpenCrowClientTest(unittest.IsolatedAsyncioTestCase):
         sockets = self.site._server.sockets  # noqa: SLF001
         port = sockets[0].getsockname()[1]
         self.session = ClientSession()
-        self.client = OpenCrowClient(self.session, f"http://127.0.0.1:{port}", "secret")
+        self.client = BarnabyClient(self.session, f"http://127.0.0.1:{port}", "secret")
 
     async def asyncTearDown(self) -> None:
         """Stop the API stub."""
@@ -73,8 +73,8 @@ class OpenCrowClientTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.requests, [payload])
 
     async def test_error_mapping(self) -> None:
-        """Structured OpenCrow errors keep their status and code."""
-        with self.assertRaises(OpenCrowResponseError) as caught:
+        """Structured Barnaby errors keep their status and code."""
+        with self.assertRaises(BarnabyResponseError) as caught:
             await self.client.async_turn(
                 {
                     "request_id": "35cc6ab3-12fe-4bc5-8dda-31f599d5ce78",
@@ -87,12 +87,12 @@ class OpenCrowClientTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_auth_error(self) -> None:
         """A rejected token has a distinct exception."""
-        bad_client = OpenCrowClient(
+        bad_client = BarnabyClient(
             self.session,
             self.client._base_url,
             "wrong",  # noqa: SLF001
         )
-        with self.assertRaises(OpenCrowAuthError):
+        with self.assertRaises(BarnabyAuthError):
             await bad_client.async_status()
 
 

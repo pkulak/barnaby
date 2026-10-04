@@ -1,6 +1,6 @@
 # Tutorial: NixOS deployment with Matrix
 
-This walkthrough sets up OpenCrow as a Matrix bot on NixOS using the included
+This walkthrough sets up Barnaby as a Matrix bot on NixOS using the included
 NixOS module. The module runs the bot inside a systemd-nspawn container for
 isolation.
 
@@ -11,8 +11,8 @@ isolation.
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    opencrow.url = "github:pinpox/opencrow";
-    opencrow.inputs.nixpkgs.follows = "nixpkgs";
+    barnaby.url = "github:pkulak/barnaby";
+    barnaby.inputs.nixpkgs.follows = "nixpkgs";
 
     # pi coding agent
     llm-agents.url = "github:numtide/llm-agents.nix";
@@ -45,25 +45,25 @@ Or extract it from an existing Matrix client's session.
 { self, pkgs, ... }:
 {
   imports = [
-    self.inputs.opencrow.nixosModules.default
+    self.inputs.barnaby.nixosModules.default
   ];
 
-  services.opencrow = {
+  services.barnaby = {
     enable = true;
     piPackage = self.inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}.pi;
 
     environment = {
-      OPENCROW_MATRIX_HOMESERVER = "https://matrix.org";
-      OPENCROW_PI_PROVIDER = "anthropic";
-      OPENCROW_PI_MODEL = "claude-sonnet-4-6";
+      BARNABY_MATRIX_HOMESERVER = "https://matrix.org";
+      BARNABY_PI_PROVIDER = "anthropic";
+      BARNABY_PI_MODEL = "claude-sonnet-4-6";
 
       # Restrict access to specific Matrix users (optional, empty allows all)
-      OPENCROW_ALLOWED_USERS = "@alice:matrix.org,@bob:matrix.org";
+      BARNABY_ALLOWED_USERS = "@alice:matrix.org,@bob:matrix.org";
 
       # Optional: stable default room for triggers/reminders.
       # When set, Matrix also switches from "join the first room only"
       # to "join all allowed invited rooms".
-      # OPENCROW_MATRIX_ROOM_ID = "!your-room-id:matrix.org";
+      # BARNABY_MATRIX_ROOM_ID = "!your-room-id:matrix.org";
     };
 
     # Extra packages available to the agent inside the container
@@ -80,27 +80,27 @@ The bot needs a Matrix access token, user ID, and LLM provider credentials.
 Pass secrets into the container using environment files — never put secrets in
 the Nix store.
 
-Create a file (e.g. `/run/secrets/opencrow-env`) containing:
+Create a file (e.g. `/run/secrets/barnaby-env`) containing:
 
 ```
-OPENCROW_MATRIX_ACCESS_TOKEN=syt_...
-OPENCROW_MATRIX_USER_ID=@mybot:matrix.org
+BARNABY_MATRIX_ACCESS_TOKEN=syt_...
+BARNABY_MATRIX_USER_ID=@mybot:matrix.org
 ANTHROPIC_API_KEY=sk-...
 ```
 
 Then reference it:
 
 ```nix
-services.opencrow.environmentFiles = [
-  /run/secrets/opencrow-env
+services.barnaby.environmentFiles = [
+  /run/secrets/barnaby-env
 ];
 ```
 
 If you want one room to act as the bot's default home for background traffic,
-add this to `services.opencrow.environment`:
+add this to `services.barnaby.environment`:
 
 ```nix
-OPENCROW_MATRIX_ROOM_ID = "!your-room-id:matrix.org";
+BARNABY_MATRIX_ROOM_ID = "!your-room-id:matrix.org";
 ```
 
 That variable has two effects:
@@ -115,7 +115,7 @@ subscription, skip `ANTHROPIC_API_KEY` and authenticate interactively after
 deployment:
 
 ```bash
-sudo opencrow-pi auth login
+sudo barnaby-pi auth login
 ```
 
 Pi prints a URL — open it in any browser, log in, and paste the redirect URL
@@ -130,10 +130,10 @@ After deploying your NixOS configuration:
 machinectl list
 
 # Follow the bot logs
-journalctl -M opencrow -u opencrow -f
+journalctl -M barnaby -u barnaby -f
 
 # Interactive pi shell inside the container (requires root)
-sudo opencrow-pi
+sudo barnaby-pi
 ```
 
 Invite the bot to a Matrix room or send it a DM. The bot should respond.
@@ -144,7 +144,7 @@ Skills teach the agent new capabilities. Extensions hook into the agent
 lifecycle:
 
 ```nix
-services.opencrow = {
+services.barnaby = {
   skills = {
     # Custom skill from a local directory
     my-skill = ./skills/my-skill;
@@ -164,7 +164,7 @@ See [Skills](skills.md) and [Extensions](extensions.md) for details.
 Create a `SOUL.md` file that defines the bot's personality and point to it:
 
 ```nix
-services.opencrow.environment.OPENCROW_SOUL_FILE = "${./soul.md}";
+services.barnaby.environment.BARNABY_SOUL_FILE = "${./soul.md}";
 ```
 
 ```markdown
@@ -183,5 +183,5 @@ Beyond the basics: curl, jq, ripgrep, fd, git, python3, w3m
 ```
 
 See [Configuration](configuration.md) for the full reference. To use the same
-OpenCrow instance as a Home Assistant conversation agent, continue with
+Barnaby instance as a Home Assistant conversation agent, continue with
 [Home Assistant voice assistant](voice-assistant.md).

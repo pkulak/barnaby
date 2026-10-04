@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pinpox/opencrow/matrix"
+	"github.com/pkulak/barnaby/matrix"
 )
 
 func TestRoomContextStore_EnqueueConsumesPersistentContext(t *testing.T) {

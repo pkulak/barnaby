@@ -15,7 +15,7 @@ var version = "dev"
 func versionString() string {
 	bi, ok := debug.ReadBuildInfo()
 	if !ok {
-		return "opencrow " + version
+		return "barnaby " + version
 	}
 
 	parts := []string{bi.GoVersion}
@@ -45,5 +45,5 @@ func versionString() string {
 		}
 	}
 
-	return fmt.Sprintf("opencrow %s (%s)", version, strings.Join(parts, ", "))
+	return fmt.Sprintf("barnaby %s (%s)", version, strings.Join(parts, ", "))
 }

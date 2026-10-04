@@ -6,14 +6,13 @@
   ...
 }:
 let
-  cfg = config.services.opencrow;
+  cfg = config.services.barnaby;
 
   jsonFormat = pkgs.formats.json { };
 
   # Derive container name and state directory from instance name.
-  # The "default" instance (top-level enable) keeps the original
-  # paths for backward compatibility.
-  containerNameOf = name: if name == "default" then "opencrow" else "opencrow-${name}";
+  # The "default" instance (top-level enable) is named "barnaby".
+  containerNameOf = name: if name == "default" then "barnaby" else name;
   stateDirOf = name: "/var/lib/${containerNameOf name}";
 
   # Shared option definitions used by both the top-level (default instance)
@@ -21,10 +20,10 @@ let
   mkInstanceOptions =
     { name, config }:
     let
-      opencrowPkg = config.package;
+      barnabyPkg = config.package;
       stateDir = stateDirOf name;
 
-      skillsDir = pkgs.linkFarm "opencrow-skills-${name}" (
+      skillsDir = pkgs.linkFarm "barnaby-skills-${name}" (
         lib.mapAttrsToList (sname: path: {
           name = sname;
           inherit path;
@@ -34,9 +33,9 @@ let
     {
       package = lib.mkOption {
         type = lib.types.package;
-        default = self.packages.${pkgs.stdenv.hostPlatform.system}.opencrow;
-        defaultText = lib.literalExpression "opencrow.packages.\${system}.opencrow";
-        description = "The opencrow package to use.";
+        default = self.packages.${pkgs.stdenv.hostPlatform.system}.barnaby;
+        defaultText = lib.literalExpression "barnaby.packages.\${system}.barnaby";
+        description = "The barnaby package to use.";
       };
 
       piPackage = lib.mkOption {
@@ -52,7 +51,7 @@ let
           Skill directories to make available to pi, keyed by name. Each
           value must be a path to a directory containing a SKILL.md file.
           All skills are assembled into a single directory and passed via
-          OPENCROW_PI_SKILLS_DIR.
+          BARNABY_PI_SKILLS_DIR.
         '';
         example = lib.literalExpression ''
           {
@@ -68,7 +67,7 @@ let
         description = ''
           Pi extension files or directories to make available, keyed by
           name. Each value can be:
-          - `true` to enable a packaged extension shipped with opencrow
+          - `true` to enable a packaged extension shipped with barnaby
             (resolved from the flake's `extension-''${name}` package output)
           - `false` to explicitly disable an extension
           - A path to a .ts file or directory containing an index.ts
@@ -77,7 +76,7 @@ let
           that pi reads from PI_CODING_AGENT_DIR.
 
           Bundled extension: `reminders` (remind_at/list/cancel tools backed
-          by opencrow.db).
+          by barnaby.db).
         '';
         example = lib.literalExpression ''
           {
@@ -131,8 +130,8 @@ let
           List of environment files containing secrets (on the host).
           Bind-mounted read-only into the container.
           Must define at minimum (across all files):
-          - OPENCROW_MATRIX_ACCESS_TOKEN
-          - OPENCROW_MATRIX_USER_ID
+          - BARNABY_MATRIX_ACCESS_TOKEN
+          - BARNABY_MATRIX_USER_ID
           - ANTHROPIC_API_KEY (or the appropriate key for your provider)
         '';
       };
@@ -143,7 +142,7 @@ let
         description = ''
           Credential files to pass into the container via systemd-nspawn's
           --load-credential. Keys are credential names, values are host paths.
-          Inside the container, the opencrow service imports them via
+          Inside the container, the barnaby service imports them via
           ImportCredential and they are available under
           $CREDENTIALS_DIRECTORY/<name>.
         '';
@@ -180,83 +179,83 @@ let
           freeformType = lib.types.attrsOf lib.types.str;
 
           options = {
-            OPENCROW_MATRIX_HOMESERVER = lib.mkOption {
+            BARNABY_MATRIX_HOMESERVER = lib.mkOption {
               type = lib.types.str;
               default = "";
               description = "Matrix homeserver URL. Required.";
               example = "https://matrix.example.com";
             };
 
-            OPENCROW_MATRIX_DEVICE_ID = lib.mkOption {
+            BARNABY_MATRIX_DEVICE_ID = lib.mkOption {
               type = lib.types.str;
               default = "";
               description = "Matrix device ID.";
             };
 
-            OPENCROW_PI_PROVIDER = lib.mkOption {
+            BARNABY_PI_PROVIDER = lib.mkOption {
               type = lib.types.str;
               default = "anthropic";
               description = "LLM provider for pi (anthropic, openai, google, etc.).";
             };
 
-            OPENCROW_PI_MODEL = lib.mkOption {
+            BARNABY_PI_MODEL = lib.mkOption {
               type = lib.types.str;
               default = "claude-opus-4-6";
               description = "Model ID for the chat pi session.";
             };
 
-            OPENCROW_BACKGROUND_PI_PROVIDER = lib.mkOption {
+            BARNABY_BACKGROUND_PI_PROVIDER = lib.mkOption {
               type = lib.types.str;
               default = "";
               description = "Optional provider override for the background pi session.";
             };
 
-            OPENCROW_BACKGROUND_PI_MODEL = lib.mkOption {
+            BARNABY_BACKGROUND_PI_MODEL = lib.mkOption {
               type = lib.types.str;
               default = "";
               description = "Optional model override for reminders and external triggers.";
             };
 
-            OPENCROW_PI_SESSION_DIR = lib.mkOption {
+            BARNABY_PI_SESSION_DIR = lib.mkOption {
               type = lib.types.str;
               default = "${stateDir}/sessions";
               description = "Directory for pi session storage.";
             };
 
-            OPENCROW_PI_IDLE_TIMEOUT = lib.mkOption {
+            BARNABY_PI_IDLE_TIMEOUT = lib.mkOption {
               type = lib.types.str;
               default = "30m";
               description = "Idle timeout for pi processes (Go duration format, e.g. 30m, 1h).";
             };
 
-            OPENCROW_PI_WORKING_DIR = lib.mkOption {
+            BARNABY_PI_WORKING_DIR = lib.mkOption {
               type = lib.types.str;
               default = stateDir;
               description = "Working directory for pi subprocesses.";
             };
 
-            OPENCROW_PI_SYSTEM_PROMPT = lib.mkOption {
+            BARNABY_PI_SYSTEM_PROMPT = lib.mkOption {
               type = lib.types.str;
               default = "";
               description = "Custom system prompt appended to pi. Empty uses the built-in default.";
             };
 
-            OPENCROW_PI_SKILLS = lib.mkOption {
+            BARNABY_PI_SKILLS = lib.mkOption {
               type = lib.types.str;
               default = "";
               description = "Comma-separated list of additional skill paths to pass to pi via --skill. Prefer using the top-level `skills` option instead.";
             };
 
-            OPENCROW_PI_SKILLS_DIR = lib.mkOption {
+            BARNABY_PI_SKILLS_DIR = lib.mkOption {
               type = lib.types.str;
               default = toString skillsDir;
               defaultText = lib.literalExpression ''"''${skillsDir}"'';
               description = "Directory to scan for skill subdirectories (each must contain SKILL.md). Automatically populated from the `skills` option.";
             };
 
-            OPENCROW_SOUL_FILE = lib.mkOption {
+            BARNABY_SOUL_FILE = lib.mkOption {
               type = lib.types.str;
-              default = "${opencrowPkg}/share/opencrow/SOUL.md";
+              default = "${barnabyPkg}/share/barnaby/SOUL.md";
               description = "Path to SOUL.md personality file.";
             };
 
@@ -266,7 +265,7 @@ let
               description = "Directory where pi stores its agent configuration and data.";
             };
 
-            OPENCROW_LOG_LEVEL = lib.mkOption {
+            BARNABY_LOG_LEVEL = lib.mkOption {
               type = lib.types.enum [
                 "debug"
                 "info"
@@ -280,7 +279,7 @@ let
         };
         default = { };
         description = ''
-          Environment variables passed to the opencrow service.
+          Environment variables passed to the barnaby service.
           Known options have defaults and descriptions. Extra variables
           (e.g. provider-specific settings) can be added freely.
         '';
@@ -291,27 +290,27 @@ let
     { name, config, ... }:
     {
       options = {
-        enable = lib.mkEnableOption "OpenCrow messaging bot instance '${name}'";
+        enable = lib.mkEnableOption "Barnaby messaging bot instance '${name}'";
       }
       // mkInstanceOptions { inherit name config; };
     };
 
   # Build the effective set of all enabled instances: the top-level "default"
-  # instance (when services.opencrow.enable is set) merged with all named
-  # instances from services.opencrow.instances.
+  # instance (when services.barnaby.enable is set) merged with all named
+  # instances from services.barnaby.instances.
   effectiveInstances =
     (lib.optionalAttrs cfg.enable { default = cfg; }) // lib.filterAttrs (_: i: i.enable) cfg.instances;
 
   mkInstanceConfig =
     name: icfg:
     let
-      opencrowPkg = icfg.package;
+      barnabyPkg = icfg.package;
 
       containerName = containerNameOf name;
       stateDir = stateDirOf name;
 
       # Resolve extension values: `true` means use the corresponding
-      # extension package from the opencrow flake, a path is used as-is.
+      # extension package from the barnaby flake, a path is used as-is.
       resolvedExtensions = lib.mapAttrs (
         ename: value:
         if value == true then
@@ -329,9 +328,9 @@ let
 
       piModelsJson = jsonFormat.generate "pi-models-${name}.json" icfg.piModels;
 
-      # Host-side wrapper to interact with pi inside the container as the opencrow user.
-      opencrowPi = pkgs.writeShellScriptBin "${containerName}-pi" ''
-        exec machinectl shell opencrow@${containerName} \
+      # Host-side wrapper to interact with pi inside the container as the barnaby user.
+      barnabyPi = pkgs.writeShellScriptBin "${containerName}-pi" ''
+        exec machinectl shell barnaby@${containerName} \
           /run/current-system/sw/bin/env \
             HOME=${stateDir} \
             PI_CODING_AGENT_DIR=${icfg.environment.PI_CODING_AGENT_DIR} \
@@ -342,19 +341,19 @@ let
     {
       assertions = [
         {
-          assertion = icfg.environment.OPENCROW_MATRIX_HOMESERVER != "";
-          message = "services.opencrow (${name}): OPENCROW_MATRIX_HOMESERVER is required.";
+          assertion = icfg.environment.BARNABY_MATRIX_HOMESERVER != "";
+          message = "services.barnaby (${name}): BARNABY_MATRIX_HOMESERVER is required.";
         }
       ];
 
-      systemPackages = [ opencrowPi ];
+      systemPackages = [ barnabyPi ];
 
-      # The opencrow user only exists inside the container, not on the host,
+      # The barnaby user only exists inside the container, not on the host,
       # so we cannot reference it in host-side tmpfiles rules (systemd-tmpfiles
       # would fail to resolve the name and skip the rule, leaving the bind
       # mount source missing). Create the directory as root here; the
       # container's own tmpfiles rules fix up ownership from the inside
-      # where the opencrow UID is known.
+      # where the barnaby UID is known.
       tmpfilesRules = [
         "d ${stateDir} 0750 - - -"
       ];
@@ -396,35 +395,35 @@ let
           {
             system.stateVersion = "25.05";
 
-            users.users.opencrow = {
+            users.users.barnaby = {
               isSystemUser = true;
-              group = "opencrow";
+              group = "barnaby";
               home = stateDir;
             };
-            users.groups.opencrow = { };
+            users.groups.barnaby = { };
 
             # Place the generated settings.json into PI_CODING_AGENT_DIR
             # so pi discovers declared extensions and packages.
             systemd.tmpfiles.rules = [
               # Fix up ownership of the bind-mounted state dir. The host side
-              # created it as root because the opencrow user does not exist
+              # created it as root because the barnaby user does not exist
               # there; inside the container we know the UID and can chown it.
-              "d ${stateDir} 0750 opencrow opencrow -"
-              "d ${icfg.environment.PI_CODING_AGENT_DIR} 0750 opencrow opencrow -"
+              "d ${stateDir} 0750 barnaby barnaby -"
+              "d ${icfg.environment.PI_CODING_AGENT_DIR} 0750 barnaby barnaby -"
               "L+ ${icfg.environment.PI_CODING_AGENT_DIR}/settings.json - - - - ${piSettingsJson}"
             ]
             ++ lib.optional (
               icfg.piModels != { }
             ) "L+ ${icfg.environment.PI_CODING_AGENT_DIR}/models.json - - - - ${piModelsJson}";
 
-            systemd.services.opencrow = {
-              description = "OpenCrow Matrix Bot (${name})";
+            systemd.services.barnaby = {
+              description = "Barnaby Matrix Bot (${name})";
               wantedBy = [ "multi-user.target" ];
               after = [ "network-online.target" ];
               wants = [ "network-online.target" ];
 
               path = [
-                opencrowPkg
+                barnabyPkg
                 icfg.piPackage
                 pkgs.bash
                 pkgs.coreutils
@@ -442,11 +441,11 @@ let
                   i: _: "/run/secrets/${containerName}-envfile-${toString i}"
                 ) icfg.environmentFiles;
                 ImportCredential = lib.attrNames icfg.credentialFiles;
-                ExecStart = lib.getExe opencrowPkg;
+                ExecStart = lib.getExe barnabyPkg;
                 Restart = "on-failure";
                 RestartSec = 10;
-                User = "opencrow";
-                Group = "opencrow";
+                User = "barnaby";
+                Group = "barnaby";
                 WorkingDirectory = stateDir;
                 StateDirectory = containerName;
                 StateDirectoryMode = "0750";
@@ -454,7 +453,7 @@ let
             };
 
             environment.systemPackages = [
-              opencrowPkg
+              barnabyPkg
               icfg.piPackage
             ]
             ++ icfg.extraPackages;
@@ -466,23 +465,23 @@ let
   instanceConfigs = lib.mapAttrs mkInstanceConfig effectiveInstances;
 in
 {
-  options.services.opencrow = lib.mkOption {
+  options.services.barnaby = lib.mkOption {
     type = lib.types.submodule (
       { config, ... }:
       {
         options = {
-          enable = lib.mkEnableOption "OpenCrow default instance";
+          enable = lib.mkEnableOption "Barnaby default instance";
 
           instances = lib.mkOption {
             type = lib.types.attrsOf (lib.types.submodule instanceModule);
             default = { };
-            description = "Named OpenCrow Matrix bot instances. Each instance runs in its own container.";
+            description = "Named Barnaby Matrix bot instances. Each instance runs in its own container.";
             example = lib.literalExpression ''
               {
                 mybot = {
                   enable = true;
                   piPackage = llm-agents.packages.''${system}.pi;
-                  environment.OPENCROW_MATRIX_HOMESERVER = "https://matrix.example.com";
+                  environment.BARNABY_MATRIX_HOMESERVER = "https://matrix.example.com";
                 };
               }
             '';
@@ -496,7 +495,7 @@ in
     );
     default = { };
     description = ''
-      OpenCrow Matrix bot configuration. Use `enable` and the top-level
+      Barnaby Matrix bot configuration. Use `enable` and the top-level
       options for a single default instance, or `instances.<name>` for
       multiple named instances with independent containers and data.
     '';
@@ -507,7 +506,11 @@ in
     assertions = [
       {
         assertion = !(cfg.instances ? "default");
-        message = "services.opencrow: the instance name 'default' is reserved for the top-level configuration. Use a different name or configure via services.opencrow.enable with top-level options.";
+        message = "services.barnaby: the instance name 'default' is reserved for the top-level configuration. Use a different name or configure via services.barnaby.enable with top-level options.";
+      }
+      {
+        assertion = !(effectiveInstances ? default && effectiveInstances ? barnaby);
+        message = "services.barnaby: the top-level instance and instances.barnaby both use the container name 'barnaby'. Rename the named instance or disable the top-level one.";
       }
     ]
     ++ lib.concatLists (lib.mapAttrsToList (_: ic: ic.assertions) instanceConfigs);

@@ -44,8 +44,8 @@ type PiConfig struct {
 	// tests use it to run the fake-pi stub via `bash <script>` so the
 	// testdata file needs no exec bit and no shebang lookup.
 	BinaryArgs []string
-	// SessionDir holds Pi session JSONL files. StateDir holds shared OpenCrow
-	// state such as opencrow.db, .room_id, and trigger.pipe.
+	// SessionDir holds Pi session JSONL files. StateDir holds shared Barnaby
+	// state such as barnaby.db, .room_id, and trigger.pipe.
 	SessionDir string
 	StateDir   string
 	Provider   string
@@ -56,11 +56,11 @@ type PiConfig struct {
 	IdleTimeout   time.Duration
 	SystemPrompt  string
 	Skills        []string
-	ShowToolCalls bool // OPENCROW_SHOW_TOOL_CALLS — relay tool_execution_start events to chat
-	DebugTiming   bool // OPENCROW_DEBUG_TIMING — append timing info to each reply
+	ShowToolCalls bool // BARNABY_SHOW_TOOL_CALLS — relay tool_execution_start events to chat
+	DebugTiming   bool // BARNABY_DEBUG_TIMING — append timing info to each reply
 	// CompactOnIdle compacts a session before the idle reaper kills its pi
 	// process, so the on-disk session is smaller the next time it resumes.
-	CompactOnIdle bool // OPENCROW_PI_COMPACT_ON_IDLE
+	CompactOnIdle bool // BARNABY_PI_COMPACT_ON_IDLE
 	// NoContinue suppresses --continue when spawning pi. Background work sets
 	// this: each trigger gets a fresh session via new_session, so resuming the
 	// previous run's file would only load context that is about to be discarded.
@@ -81,23 +81,23 @@ func LoadConfig() (*Config, error) {
 func loadConfig(getenv func(string) string) (*Config, error) {
 	env := envReader{getenv: getenv}
 
-	if backendType := env.str("OPENCROW_BACKEND"); backendType != "" && backendType != "matrix" {
-		return nil, fmt.Errorf("OPENCROW_BACKEND=%q is not supported; OpenCrow only supports Matrix", backendType)
+	if backendType := env.str("BARNABY_BACKEND"); backendType != "" && backendType != "matrix" {
+		return nil, fmt.Errorf("BARNABY_BACKEND=%q is not supported; Barnaby only supports Matrix", backendType)
 	}
 
-	idleTimeout, err := env.duration("OPENCROW_PI_IDLE_TIMEOUT", 30*time.Minute)
+	idleTimeout, err := env.duration("BARNABY_PI_IDLE_TIMEOUT", 30*time.Minute)
 	if err != nil {
 		return nil, err
 	}
 
 	skills := parseSkills(env)
-	allowedUsers := parseAllowedUsers(env.list("OPENCROW_ALLOWED_USERS"))
-	workingDir := env.or("OPENCROW_PI_WORKING_DIR", "/var/lib/opencrow")
+	allowedUsers := parseAllowedUsers(env.list("BARNABY_ALLOWED_USERS"))
+	workingDir := env.or("BARNABY_PI_WORKING_DIR", "/var/lib/barnaby")
 
-	groupTriggerScript := env.str("OPENCROW_GROUP_TRIGGER_SCRIPT")
+	groupTriggerScript := env.str("BARNABY_GROUP_TRIGGER_SCRIPT")
 	if groupTriggerScript != "" {
 		if _, err := exec.LookPath(groupTriggerScript); err != nil {
-			return nil, fmt.Errorf("OPENCROW_GROUP_TRIGGER_SCRIPT: %w", err)
+			return nil, fmt.Errorf("BARNABY_GROUP_TRIGGER_SCRIPT: %w", err)
 		}
 	}
 
@@ -108,13 +108,13 @@ func loadConfig(getenv func(string) string) (*Config, error) {
 
 	cfg := &Config{
 		Matrix: MatrixConfig{
-			Homeserver:   env.str("OPENCROW_MATRIX_HOMESERVER"),
-			UserID:       env.str("OPENCROW_MATRIX_USER_ID"),
-			AccessToken:  env.str("OPENCROW_MATRIX_ACCESS_TOKEN"),
-			DeviceID:     env.str("OPENCROW_MATRIX_DEVICE_ID"),
+			Homeserver:   env.str("BARNABY_MATRIX_HOMESERVER"),
+			UserID:       env.str("BARNABY_MATRIX_USER_ID"),
+			AccessToken:  env.str("BARNABY_MATRIX_ACCESS_TOKEN"),
+			DeviceID:     env.str("BARNABY_MATRIX_DEVICE_ID"),
 			AllowedUsers: allowedUsers,
-			PickleKey:    env.or("OPENCROW_MATRIX_PICKLE_KEY", "opencrow-default-pickle-key"),
-			CryptoDBPath: env.or("OPENCROW_MATRIX_CRYPTO_DB", filepath.Join(workingDir, "crypto.db")),
+			PickleKey:    env.or("BARNABY_MATRIX_PICKLE_KEY", "barnaby-default-pickle-key"),
+			CryptoDBPath: env.or("BARNABY_MATRIX_CRYPTO_DB", filepath.Join(workingDir, "crypto.db")),
 		},
 		Pi:                 loadPiConfig(env, workingDir, idleTimeout, skills),
 		BackgroundPi:       loadBackgroundPiConfig(env, workingDir, idleTimeout, skills),
@@ -133,16 +133,16 @@ func loadConfig(getenv func(string) string) (*Config, error) {
 
 func loadHTTPConfig(env envReader) (HTTPConfig, error) {
 	httpCfg := HTTPConfig{
-		Listen:         env.str("OPENCROW_HTTP_LISTEN"),
-		BearerToken:    env.str("OPENCROW_HTTP_BEARER_TOKEN"),
-		MCPBearerToken: env.str("OPENCROW_MCP_BEARER_TOKEN"),
+		Listen:         env.str("BARNABY_HTTP_LISTEN"),
+		BearerToken:    env.str("BARNABY_HTTP_BEARER_TOKEN"),
+		MCPBearerToken: env.str("BARNABY_MCP_BEARER_TOKEN"),
 	}
 	if httpCfg.Listen != "" && httpCfg.BearerToken == "" {
-		return HTTPConfig{}, errors.New("OPENCROW_HTTP_BEARER_TOKEN is required when OPENCROW_HTTP_LISTEN is set")
+		return HTTPConfig{}, errors.New("BARNABY_HTTP_BEARER_TOKEN is required when BARNABY_HTTP_LISTEN is set")
 	}
 
 	if httpCfg.MCPBearerToken != "" && httpCfg.Listen == "" {
-		return HTTPConfig{}, errors.New("OPENCROW_HTTP_LISTEN is required when OPENCROW_MCP_BEARER_TOKEN is set")
+		return HTTPConfig{}, errors.New("BARNABY_HTTP_LISTEN is required when BARNABY_MCP_BEARER_TOKEN is set")
 	}
 
 	return httpCfg, nil
@@ -150,31 +150,31 @@ func loadHTTPConfig(env envReader) (HTTPConfig, error) {
 
 func (m MatrixConfig) validate() error {
 	return errors.Join(
-		requireField(m.Homeserver, "OPENCROW_MATRIX_HOMESERVER"),
-		requireField(m.UserID, "OPENCROW_MATRIX_USER_ID"),
-		requireField(m.AccessToken, "OPENCROW_MATRIX_ACCESS_TOKEN"),
+		requireField(m.Homeserver, "BARNABY_MATRIX_HOMESERVER"),
+		requireField(m.UserID, "BARNABY_MATRIX_USER_ID"),
+		requireField(m.AccessToken, "BARNABY_MATRIX_ACCESS_TOKEN"),
 	)
 }
 
 // requireField returns an "is required" error if v is empty. Intended for
 // use with errors.Join so that validate() reports all missing fields at once.
 func loadPiConfig(env envReader, workingDir string, idleTimeout time.Duration, skills []string) PiConfig {
-	sessionDir := env.or("OPENCROW_PI_SESSION_DIR", "/var/lib/opencrow/sessions")
+	sessionDir := env.or("BARNABY_PI_SESSION_DIR", "/var/lib/barnaby/sessions")
 
 	return PiConfig{
-		BinaryPath:    env.or("OPENCROW_PI_BINARY", "pi"),
+		BinaryPath:    env.or("BARNABY_PI_BINARY", "pi"),
 		SessionDir:    sessionDir,
 		StateDir:      sessionDir,
-		Provider:      env.or("OPENCROW_PI_PROVIDER", "anthropic"),
-		Model:         env.or("OPENCROW_PI_MODEL", "claude-opus-4-6"),
+		Provider:      env.or("BARNABY_PI_PROVIDER", "anthropic"),
+		Model:         env.or("BARNABY_PI_MODEL", "claude-opus-4-6"),
 		WorkingDir:    workingDir,
 		IdleTimeout:   idleTimeout,
 		SystemPrompt:  loadSoul(env),
 		Skills:        skills,
-		ShowToolCalls: env.bool("OPENCROW_SHOW_TOOL_CALLS"),
-		DebugTiming:   env.bool("OPENCROW_DEBUG_TIMING"),
-		CompactOnIdle: env.bool("OPENCROW_PI_COMPACT_ON_IDLE"),
-		DefaultRoomID: env.str("OPENCROW_MATRIX_ROOM_ID"),
+		ShowToolCalls: env.bool("BARNABY_SHOW_TOOL_CALLS"),
+		DebugTiming:   env.bool("BARNABY_DEBUG_TIMING"),
+		CompactOnIdle: env.bool("BARNABY_PI_COMPACT_ON_IDLE"),
+		DefaultRoomID: env.str("BARNABY_MATRIX_ROOM_ID"),
 	}
 }
 
@@ -183,13 +183,13 @@ func loadBackgroundPiConfig(env envReader, workingDir string, idleTimeout time.D
 	// Each background turn runs in its own fresh session. Keep the transcripts
 	// in a temp dir so recent runs stay debuggable but age out on their own;
 	// in the NixOS containers /tmp is a bind mount of the state dir's tmp/.
-	cfg.SessionDir = env.or("OPENCROW_BACKGROUND_PI_SESSION_DIR", filepath.Join(os.TempDir(), "opencrow-background"))
+	cfg.SessionDir = env.or("BARNABY_BACKGROUND_PI_SESSION_DIR", filepath.Join(os.TempDir(), "barnaby-background"))
 	cfg.NoContinue = true
 	// Background context is one turn; the idle reaper would only waste a
 	// summarization call compacting it.
 	cfg.CompactOnIdle = false
-	cfg.Provider = env.or("OPENCROW_BACKGROUND_PI_PROVIDER", cfg.Provider)
-	cfg.Model = env.or("OPENCROW_BACKGROUND_PI_MODEL", cfg.Model)
+	cfg.Provider = env.or("BARNABY_BACKGROUND_PI_PROVIDER", cfg.Provider)
+	cfg.Model = env.or("BARNABY_BACKGROUND_PI_MODEL", cfg.Model)
 
 	return cfg
 }
@@ -203,7 +203,7 @@ func loadVoicePiConfig(env envReader, workingDir string, idleTimeout time.Durati
 
 func loadMCPPiConfig(env envReader, workingDir string, idleTimeout time.Duration, skills []string) PiConfig {
 	cfg := loadPiConfig(env, workingDir, idleTimeout, skills)
-	cfg.SessionDir = env.or("OPENCROW_MCP_SESSION_DIR", filepath.Join(os.TempDir(), "opencrow-mcp"))
+	cfg.SessionDir = env.or("BARNABY_MCP_SESSION_DIR", filepath.Join(os.TempDir(), "barnaby-mcp"))
 	// The MCP worker selects each request's session explicitly with
 	// new_session or switch_session, so resuming the latest file is useless.
 	cfg.NoContinue = true
@@ -272,9 +272,9 @@ func (e envReader) duration(key string, def time.Duration) (time.Duration, error
 }
 
 func parseSkills(env envReader) []string {
-	skills := env.list("OPENCROW_PI_SKILLS")
+	skills := env.list("BARNABY_PI_SKILLS")
 
-	if dir := env.str("OPENCROW_PI_SKILLS_DIR"); dir != "" {
+	if dir := env.str("BARNABY_PI_SKILLS_DIR"); dir != "" {
 		skills = append(skills, discoverSkills(dir)...)
 	}
 
@@ -315,10 +315,10 @@ func parseAllowedUsers(users []string) map[string]struct{} {
 	return allowedUsers
 }
 
-// loadSoul reads the system prompt from OPENCROW_SOUL_FILE if set,
-// falling back to OPENCROW_PI_SYSTEM_PROMPT, then the built-in default.
+// loadSoul reads the system prompt from BARNABY_SOUL_FILE if set,
+// falling back to BARNABY_PI_SYSTEM_PROMPT, then the built-in default.
 func loadSoul(env envReader) string {
-	if path := env.str("OPENCROW_SOUL_FILE"); path != "" {
+	if path := env.str("BARNABY_SOUL_FILE"); path != "" {
 		data, err := os.ReadFile(path)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "warning: failed to read soul file %s: %v\n", path, err)
@@ -327,10 +327,10 @@ func loadSoul(env envReader) string {
 		}
 	}
 
-	return env.or("OPENCROW_PI_SYSTEM_PROMPT", defaultSoul)
+	return env.or("BARNABY_PI_SYSTEM_PROMPT", defaultSoul)
 }
 
-const defaultSoul = `You are OpenCrow, an AI assistant communicating via Matrix.
+const defaultSoul = `You are Barnaby, an AI assistant communicating via Matrix.
 
 Be genuinely helpful, not performatively helpful. Skip the filler words — just help.
 Have opinions. Be resourceful before asking. Earn trust through competence.

@@ -10,7 +10,7 @@ import (
 const (
 	testChatProvider = "chat-provider"
 	testChatModel    = "chat-model"
-	testSessionDir   = "/tmp/opencrow"
+	testSessionDir   = "/tmp/barnaby"
 )
 
 func TestMatrixConfig_ValidateReportsAllMissing(t *testing.T) {
@@ -23,9 +23,9 @@ func TestMatrixConfig_ValidateReportsAllMissing(t *testing.T) {
 
 	msg := err.Error()
 	for _, want := range []string{
-		"OPENCROW_MATRIX_HOMESERVER",
-		"OPENCROW_MATRIX_USER_ID",
-		"OPENCROW_MATRIX_ACCESS_TOKEN",
+		"BARNABY_MATRIX_HOMESERVER",
+		"BARNABY_MATRIX_USER_ID",
+		"BARNABY_MATRIX_ACCESS_TOKEN",
 	} {
 		if !strings.Contains(msg, want) {
 			t.Errorf("error %q missing %q", msg, want)
@@ -44,9 +44,9 @@ func testEnv(m map[string]string) func(string) string {
 func baseMatrixEnv() map[string]string {
 	// #nosec G101 -- these are non-functional test-only Matrix credentials.
 	return map[string]string{
-		"OPENCROW_MATRIX_HOMESERVER":   "https://matrix.example.com",
-		"OPENCROW_MATRIX_USER_ID":      "@bot:example.com",
-		"OPENCROW_MATRIX_ACCESS_TOKEN": "syt_test_token",
+		"BARNABY_MATRIX_HOMESERVER":   "https://matrix.example.com",
+		"BARNABY_MATRIX_USER_ID":      "@bot:example.com",
+		"BARNABY_MATRIX_ACCESS_TOKEN": "syt_test_token",
 	}
 }
 
@@ -54,17 +54,17 @@ func TestLoadConfig_BackgroundPiOverrides(t *testing.T) {
 	t.Parallel()
 
 	env := baseMatrixEnv()
-	env["OPENCROW_PI_SESSION_DIR"] = testSessionDir
-	env["OPENCROW_PI_PROVIDER"] = testChatProvider
-	env["OPENCROW_PI_MODEL"] = testChatModel
-	env["OPENCROW_BACKGROUND_PI_MODEL"] = "background-model"
+	env["BARNABY_PI_SESSION_DIR"] = testSessionDir
+	env["BARNABY_PI_PROVIDER"] = testChatProvider
+	env["BARNABY_PI_MODEL"] = testChatModel
+	env["BARNABY_BACKGROUND_PI_MODEL"] = "background-model"
 
 	cfg, err := loadConfig(testEnv(env))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if cfg.BackgroundPi.SessionDir != filepath.Join(os.TempDir(), "opencrow-background") {
+	if cfg.BackgroundPi.SessionDir != filepath.Join(os.TempDir(), "barnaby-background") {
 		t.Errorf("background session dir = %q", cfg.BackgroundPi.SessionDir)
 	}
 
@@ -72,7 +72,7 @@ func TestLoadConfig_BackgroundPiOverrides(t *testing.T) {
 		t.Error("background NoContinue = false, want true")
 	}
 
-	if cfg.BackgroundPi.StateDir != "/tmp/opencrow" {
+	if cfg.BackgroundPi.StateDir != "/tmp/barnaby" {
 		t.Errorf("background state dir = %q", cfg.BackgroundPi.StateDir)
 	}
 
@@ -85,7 +85,7 @@ func TestLoadConfig_CompactOnIdle(t *testing.T) {
 	t.Parallel()
 
 	env := baseMatrixEnv()
-	env["OPENCROW_PI_COMPACT_ON_IDLE"] = "true"
+	env["BARNABY_PI_COMPACT_ON_IDLE"] = "true"
 
 	cfg, err := loadConfig(testEnv(env))
 	if err != nil {
@@ -105,16 +105,16 @@ func TestLoadConfig_VoiceInheritsChatConfig(t *testing.T) {
 	t.Parallel()
 
 	env := baseMatrixEnv()
-	env["OPENCROW_PI_SESSION_DIR"] = testSessionDir
-	env["OPENCROW_PI_PROVIDER"] = testChatProvider
-	env["OPENCROW_PI_MODEL"] = testChatModel
+	env["BARNABY_PI_SESSION_DIR"] = testSessionDir
+	env["BARNABY_PI_PROVIDER"] = testChatProvider
+	env["BARNABY_PI_MODEL"] = testChatModel
 
 	cfg, err := loadConfig(testEnv(env))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if cfg.VoicePi.SessionDir != "/tmp/opencrow/voice" {
+	if cfg.VoicePi.SessionDir != "/tmp/barnaby/voice" {
 		t.Errorf("voice session dir = %q", cfg.VoicePi.SessionDir)
 	}
 
@@ -127,14 +127,14 @@ func TestLoadConfig_HTTPRequiresBearerToken(t *testing.T) {
 	t.Parallel()
 
 	env := baseMatrixEnv()
-	env["OPENCROW_HTTP_LISTEN"] = "127.0.0.1:8787"
+	env["BARNABY_HTTP_LISTEN"] = "127.0.0.1:8787"
 
 	_, err := loadConfig(testEnv(env))
-	if err == nil || !strings.Contains(err.Error(), "OPENCROW_HTTP_BEARER_TOKEN") {
+	if err == nil || !strings.Contains(err.Error(), "BARNABY_HTTP_BEARER_TOKEN") {
 		t.Fatalf("error = %v, want missing bearer token", err)
 	}
 
-	env["OPENCROW_HTTP_BEARER_TOKEN"] = "secret"
+	env["BARNABY_HTTP_BEARER_TOKEN"] = "secret"
 
 	cfg, err := loadConfig(testEnv(env))
 	if err != nil {
@@ -158,7 +158,7 @@ func TestLoadConfig_MCPDisabledByDefault(t *testing.T) {
 		t.Errorf("MCP token = %q, want disabled", cfg.HTTP.MCPBearerToken)
 	}
 
-	if cfg.MCPPi.SessionDir != filepath.Join(os.TempDir(), "opencrow-mcp") || !cfg.MCPPi.NoContinue || cfg.MCPPi.CompactOnIdle {
+	if cfg.MCPPi.SessionDir != filepath.Join(os.TempDir(), "barnaby-mcp") || !cfg.MCPPi.NoContinue || cfg.MCPPi.CompactOnIdle {
 		t.Errorf("MCP Pi config = %+v", cfg.MCPPi)
 	}
 }
@@ -167,17 +167,17 @@ func TestLoadConfig_MCPRequiresHTTPListener(t *testing.T) {
 	t.Parallel()
 
 	env := baseMatrixEnv()
-	env["OPENCROW_MCP_BEARER_TOKEN"] = "mcp-secret"
+	env["BARNABY_MCP_BEARER_TOKEN"] = "mcp-secret"
 
 	_, err := loadConfig(testEnv(env))
-	if err == nil || !strings.Contains(err.Error(), "OPENCROW_HTTP_LISTEN") {
+	if err == nil || !strings.Contains(err.Error(), "BARNABY_HTTP_LISTEN") {
 		t.Fatalf("error = %v, want missing listener", err)
 	}
 
-	env["OPENCROW_HTTP_LISTEN"] = "127.0.0.1:8788"
-	env["OPENCROW_HTTP_BEARER_TOKEN"] = "voice-secret"
-	env["OPENCROW_MCP_SESSION_DIR"] = "/tmp/mcp-sessions"
-	env["OPENCROW_PI_COMPACT_ON_IDLE"] = "1"
+	env["BARNABY_HTTP_LISTEN"] = "127.0.0.1:8788"
+	env["BARNABY_HTTP_BEARER_TOKEN"] = "voice-secret"
+	env["BARNABY_MCP_SESSION_DIR"] = "/tmp/mcp-sessions"
+	env["BARNABY_PI_COMPACT_ON_IDLE"] = "1"
 
 	cfg, err := loadConfig(testEnv(env))
 	if err != nil {
@@ -193,9 +193,9 @@ func TestLoadConfig_BackgroundProviderOverrideKeepsChatModel(t *testing.T) {
 	t.Parallel()
 
 	env := baseMatrixEnv()
-	env["OPENCROW_PI_PROVIDER"] = testChatProvider
-	env["OPENCROW_PI_MODEL"] = testChatModel
-	env["OPENCROW_BACKGROUND_PI_PROVIDER"] = "background-provider"
+	env["BARNABY_PI_PROVIDER"] = testChatProvider
+	env["BARNABY_PI_MODEL"] = testChatModel
+	env["BARNABY_BACKGROUND_PI_PROVIDER"] = "background-provider"
 
 	cfg, err := loadConfig(testEnv(env))
 	if err != nil {
@@ -211,7 +211,7 @@ func TestLoadConfig_LegacyMatrixBackendAccepted(t *testing.T) {
 	t.Parallel()
 
 	env := baseMatrixEnv()
-	env["OPENCROW_BACKEND"] = "matrix"
+	env["BARNABY_BACKEND"] = "matrix"
 
 	if _, err := loadConfig(testEnv(env)); err != nil {
 		t.Fatalf("loadConfig: %v", err)
@@ -222,7 +222,7 @@ func TestLoadConfig_RejectsNonMatrixBackend(t *testing.T) {
 	t.Parallel()
 
 	env := baseMatrixEnv()
-	env["OPENCROW_BACKEND"] = "telegram"
+	env["BARNABY_BACKEND"] = "telegram"
 
 	_, err := loadConfig(testEnv(env))
 	if err == nil {
@@ -238,7 +238,7 @@ func TestMatrixConfig_AllowedUsersParsing(t *testing.T) {
 	t.Parallel()
 
 	env := baseMatrixEnv()
-	env["OPENCROW_ALLOWED_USERS"] = " @alice:example.com, @bob:example.com "
+	env["BARNABY_ALLOWED_USERS"] = " @alice:example.com, @bob:example.com "
 
 	cfg, err := loadConfig(testEnv(env))
 	if err != nil {
@@ -299,7 +299,7 @@ func TestLoadConfig_GroupTriggerScript(t *testing.T) {
 	}
 
 	env := baseMatrixEnv()
-	env["OPENCROW_GROUP_TRIGGER_SCRIPT"] = script
+	env["BARNABY_GROUP_TRIGGER_SCRIPT"] = script
 
 	cfg, err = loadConfig(testEnv(env))
 	if err != nil || cfg.GroupTriggerScript != script {
@@ -307,11 +307,11 @@ func TestLoadConfig_GroupTriggerScript(t *testing.T) {
 	}
 
 	for _, bad := range []string{plain, filepath.Join(dir, "missing")} {
-		env["OPENCROW_GROUP_TRIGGER_SCRIPT"] = bad
+		env["BARNABY_GROUP_TRIGGER_SCRIPT"] = bad
 
 		_, err := loadConfig(testEnv(env))
-		if err == nil || !strings.Contains(err.Error(), "OPENCROW_GROUP_TRIGGER_SCRIPT") {
-			t.Errorf("%s: err = %v, want OPENCROW_GROUP_TRIGGER_SCRIPT error", bad, err)
+		if err == nil || !strings.Contains(err.Error(), "BARNABY_GROUP_TRIGGER_SCRIPT") {
+			t.Errorf("%s: err = %v, want BARNABY_GROUP_TRIGGER_SCRIPT error", bad, err)
 		}
 	}
 }

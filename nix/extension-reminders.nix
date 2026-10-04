@@ -1,5 +1,5 @@
 { runCommand, sqlite }:
-runCommand "opencrow-extension-reminders"
+runCommand "barnaby-extension-reminders"
   {
     src = ../extensions/reminders;
     inherit sqlite;

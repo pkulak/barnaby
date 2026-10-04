@@ -375,11 +375,11 @@ func TestMCPSessionKeyFromHeader(t *testing.T) {
 	header := func(user, conversation string) http.Header {
 		h := http.Header{}
 		if user != "" {
-			h.Set(mcpUserHeader, user) //nolint:canonicalheader // documented spelling; Set canonicalizes it
+			h.Set(mcpUserHeader, user)
 		}
 
 		if conversation != "" {
-			h.Set(mcpConversationHeader, conversation) //nolint:canonicalheader // documented spelling; Set canonicalizes it
+			h.Set(mcpConversationHeader, conversation)
 		}
 
 		return h

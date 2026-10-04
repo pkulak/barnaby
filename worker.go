@@ -645,7 +645,7 @@ func (w *Worker) handleVoicePiError(ctx context.Context, requestID string, pi *P
 	w.voiceService.completeError(requestID, &voiceError{
 		Status:  http.StatusBadGateway,
 		Code:    "agent_failed",
-		Message: "OpenCrow could not complete the request.",
+		Message: "Barnaby could not complete the request.",
 	})
 }
 
@@ -987,7 +987,7 @@ func replyDestination(currentRoom, sourceRoom, replyToID, targetRoom string) (st
 // using the first non-empty value from the priority chain:
 //
 //  1. item.ConversationID — set by the user message that created the inbox row
-//  2. DefaultRoomID — OPENCROW_MATRIX_ROOM_ID, a stable default for triggers
+//  2. DefaultRoomID — BARNABY_MATRIX_ROOM_ID, a stable default for triggers
 //  3. resolveRoomID() — last user conversation captured by SetRoomID
 func resolveConversationID(itemConvID, defaultRoomID, activeRoomID string) string {
 	if itemConvID != "" {

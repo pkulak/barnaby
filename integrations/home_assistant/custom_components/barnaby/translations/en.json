@@ -2,10 +2,10 @@
   "config": {
     "step": {
       "user": {
-        "title": "Connect to OpenCrow",
-        "description": "Enter the base URL and bearer token for the OpenCrow voice API.",
+        "title": "Connect to Barnaby",
+        "description": "Enter the base URL and bearer token for the Barnaby voice API.",
         "data": {
-          "url": "OpenCrow URL",
+          "url": "Barnaby URL",
           "token": "Bearer token"
         },
         "data_description": {
@@ -14,12 +14,12 @@
       }
     },
     "error": {
-      "cannot_connect": "Could not connect to OpenCrow",
+      "cannot_connect": "Could not connect to Barnaby",
       "invalid_auth": "The bearer token was rejected",
       "unknown": "Unexpected error"
     },
     "abort": {
-      "already_configured": "This OpenCrow endpoint is already configured"
+      "already_configured": "This Barnaby endpoint is already configured"
     }
   }
 }

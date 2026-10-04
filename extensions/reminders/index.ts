@@ -1,8 +1,8 @@
 /**
- * Reminders Extension — scheduled prompts for opencrow
+ * Reminders Extension — scheduled prompts for barnaby
  *
  * Gives the LLM structured tools to manage one-shot reminders and recurring
- * cron series in opencrow.db. The Go-side scheduler polls both tables every
+ * cron series in barnaby.db. The Go-side scheduler polls both tables every
  * minute and delivers matching reminders as trigger messages.
  *
  * Tools:
@@ -13,7 +13,7 @@
  *   remind_cron_cancel(id)                         — cancel a recurring reminder
  *
  * The extension only writes to SQLite; all scheduling, delivery and cleanup
- * is owned by the opencrow process.
+ * is owned by the barnaby process.
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
@@ -25,8 +25,8 @@ const SQLITE_BIN_RAW = "@@SQLITE_BIN@@";
 const SQLITE_BIN = SQLITE_BIN_RAW.startsWith("@@") ? "sqlite3" : SQLITE_BIN_RAW;
 
 const DB_PATH =
-  process.env.OPENCROW_SESSION_DIR
-    ? `${process.env.OPENCROW_SESSION_DIR}/opencrow.db`
+  process.env.BARNABY_SESSION_DIR
+    ? `${process.env.BARNABY_SESSION_DIR}/barnaby.db`
     : undefined;
 
 // Human-readable delta so the agent can sanity-check its own timezone
@@ -113,8 +113,8 @@ function normalizeTimezone(timezone: string): string {
 
 export default function remindersExtension(pi: ExtensionAPI) {
   if (!DB_PATH) {
-    // OPENCROW_SESSION_DIR is exported by opencrow's StartPi; if it is
-    // missing we are running outside opencrow — silently skip.
+    // BARNABY_SESSION_DIR is exported by barnaby's StartPi; if it is
+    // missing we are running outside barnaby — silently skip.
     return;
   }
 

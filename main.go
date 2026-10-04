@@ -13,13 +13,13 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/pinpox/opencrow/matrix"
+	"github.com/pkulak/barnaby/matrix"
 	// Register the pure-Go SQLite driver.
 	_ "modernc.org/sqlite"
 )
 
 const (
-	opencrowDBFile     = "opencrow.db"
+	barnabyDBFile      = "barnaby.db"
 	legacyOutboxDBFile = "sent_messages.db"
 )
 
@@ -33,7 +33,7 @@ func main() {
 	}
 
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-		Level: parseLogLevel(os.Getenv("OPENCROW_LOG_LEVEL")),
+		Level: parseLogLevel(os.Getenv("BARNABY_LOG_LEVEL")),
 		ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
 			if a.Key == slog.TimeKey {
 				return slog.Attr{}
@@ -128,7 +128,7 @@ func runServices(ctx context.Context, svc services, cancel context.CancelFunc) i
 		go func() { serviceDone <- serviceResult{name: "voice HTTP server", err: voiceService.Run(ctx)} }()
 	}
 
-	slog.Info("opencrow starting")
+	slog.Info("barnaby starting")
 
 	first := <-serviceDone
 	exitCode := serviceExitCode(ctx, first)
@@ -189,7 +189,7 @@ const sqliteDSNParams = "?_txlock=immediate&_pragma=journal_mode(WAL)&_pragma=bu
 
 // openDB opens the shared database for inbox, outbox, and room context tables.
 func openDB(ctx context.Context, sessionDir string) (*sql.DB, error) {
-	dbPath := filepath.Join(sessionDir, opencrowDBFile)
+	dbPath := filepath.Join(sessionDir, barnabyDBFile)
 
 	db, err := sql.Open("sqlite", dbPath+sqliteDSNParams)
 	if err != nil {
@@ -283,7 +283,7 @@ func migrateLegacyOutbox(ctx context.Context, db *sql.DB, sessionDir string) err
 		return fmt.Errorf("checking legacy db: %w", err)
 	}
 
-	slog.Info("migrating legacy sent_messages.db into opencrow.db")
+	slog.Info("migrating legacy sent_messages.db into barnaby.db")
 
 	if _, err := db.ExecContext(ctx, "ATTACH DATABASE ? AS legacy", legacyPath); err != nil {
 		return fmt.Errorf("attaching legacy db: %w", err)

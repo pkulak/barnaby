@@ -3,7 +3,7 @@
   buildGoModule,
 }:
 buildGoModule (finalAttrs: {
-  pname = "opencrow";
+  pname = "barnaby";
   version = "0.3.0";
   ldflags = [ "-X main.version=${finalAttrs.version}" ];
   src = lib.fileset.toSource {
@@ -30,13 +30,13 @@ buildGoModule (finalAttrs: {
   '';
 
   postInstall = ''
-    mkdir -p $out/share/opencrow
-    cp SOUL.md $out/share/opencrow/SOUL.md
+    mkdir -p $out/share/barnaby
+    cp SOUL.md $out/share/barnaby/SOUL.md
   '';
 
   meta = {
     description = "Matrix bot bridging messages to an AI coding agent via pi RPC";
-    homepage = "https://github.com/pinpox/opencrow";
-    mainProgram = "opencrow";
+    homepage = "https://github.com/pkulak/barnaby";
+    mainProgram = "barnaby";
   };
 })

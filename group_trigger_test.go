@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pinpox/opencrow/matrix"
+	"github.com/pkulak/barnaby/matrix"
 )
 
 const familyRoom = "!family:kulak.us"

@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pinpox/opencrow/matrix"
+	"github.com/pkulak/barnaby/matrix"
 )
 
 var (

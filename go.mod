@@ -1,4 +1,4 @@
-module github.com/pinpox/opencrow
+module github.com/pkulak/barnaby
 
 go 1.25.5
 
