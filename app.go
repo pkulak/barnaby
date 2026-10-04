@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/pinpox/opencrow/matrix"
 )
@@ -22,10 +23,6 @@ var (
 )
 
 const maxReactionBytes = 64
-
-type conversationFilterState struct {
-	lastSenderIsAgent bool
-}
 
 type reactionRequest struct {
 	messageID string
@@ -111,31 +108,33 @@ func extractSendTo(text string) (string, string) {
 
 // App orchestrates command handling, inbox enqueueing, and file extraction.
 type App struct {
-	matrix            appMatrix
-	worker            *Worker
-	backgroundWorker  *Worker
-	voiceWorker       *Worker
-	voiceService      *VoiceService
-	mcpWorker         *Worker
-	inbox             *InboxStore
-	outbox            *outboxStore
-	roomContext       *roomContextStore
-	groupTriggerRegex *regexp.Regexp
+	matrix              appMatrix
+	worker              *Worker
+	backgroundWorker    *Worker
+	voiceWorker         *Worker
+	voiceService        *VoiceService
+	mcpWorker           *Worker
+	inbox               *InboxStore
+	outbox              *outboxStore
+	roomContext         *roomContextStore
+	groupTriggerScript  string
+	groupTriggerTimeout time.Duration
 
 	mu           sync.Mutex
-	filterStates map[string]*conversationFilterState
+	groupHistory map[string][]groupHistoryEntry
 }
 
 // NewApp creates a new App. The db connection is shared with the inbox
 // and owned by the caller.
 func NewApp(matrixClient appMatrix, worker *Worker, inbox *InboxStore, db *sql.DB) *App {
 	return &App{
-		matrix:       matrixClient,
-		worker:       worker,
-		inbox:        inbox,
-		outbox:       newOutboxStore(db),
-		roomContext:  newRoomContextStore(db),
-		filterStates: make(map[string]*conversationFilterState),
+		matrix:              matrixClient,
+		worker:              worker,
+		inbox:               inbox,
+		outbox:              newOutboxStore(db),
+		roomContext:         newRoomContextStore(db),
+		groupTriggerTimeout: defaultGroupTriggerTimeout,
+		groupHistory:        make(map[string][]groupHistoryEntry),
 	}
 }
 
@@ -151,13 +150,9 @@ func (a *App) SetVoice(worker *Worker, service *VoiceService) {
 // SetMCPWorker wires the optional MCP worker.
 func (a *App) SetMCPWorker(worker *Worker) { a.mcpWorker = worker }
 
-// SetGroupTriggerRegex configures the regex used to filter unaddressed group messages.
-func (a *App) SetGroupTriggerRegex(re *regexp.Regexp) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	a.groupTriggerRegex = re
-}
+// SetGroupTriggerScript configures the script that decides which group
+// messages reach the agent.
+func (a *App) SetGroupTriggerScript(script string) { a.groupTriggerScript = script }
 
 // HandleMessage dispatches commands and enqueues normal Matrix messages.
 func (a *App) HandleMessage(ctx context.Context, msg matrix.Message) { //nolint:cyclop // commands intentionally stay explicit
@@ -329,7 +324,10 @@ func (a *App) handleSkills(ctx context.Context, msg matrix.Message) {
 }
 
 func (a *App) handlePrompt(ctx context.Context, msg matrix.Message) {
-	if !msg.IsDM && !a.checkGroupMessage(msg) {
+	deliver := msg.IsDM || a.checkGroupMessage(ctx, msg)
+	a.recordHistory(msg.ConversationID, senderLabel(msg), false, msg.Text)
+
+	if !deliver {
 		slog.Debug("app: ignoring unaddressed group message",
 			"conversation", msg.ConversationID,
 			"sender", msg.SenderName,
@@ -419,37 +417,72 @@ func (a *App) buildPromptText(msg matrix.Message, quoted, recentBlock string) st
 	return promptText
 }
 
-func (a *App) getOrCreateFilterState(conversationID string) *conversationFilterState {
-	st, ok := a.filterStates[conversationID]
-	if !ok {
-		st = &conversationFilterState{}
-		a.filterStates[conversationID] = st
+func senderLabel(msg matrix.Message) string {
+	if msg.SenderName != "" {
+		return msg.SenderName
 	}
 
-	return st
+	return msg.SenderID
 }
 
-func (a *App) recordAgentActivity(conversationID string) {
+// recordHistory appends to the room's recent messages, keeping the newest few.
+func (a *App) recordHistory(conversationID, from string, isBot bool, text string) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	st := a.getOrCreateFilterState(conversationID)
-	st.lastSenderIsAgent = true
+	history := a.groupHistory[conversationID]
+	history = append(history, groupHistoryEntry{
+		from:  from,
+		isBot: isBot,
+		text:  truncateRunes(text, maxGroupHistoryRunes),
+		at:    time.Now(),
+	})
+	a.groupHistory[conversationID] = history[max(0, len(history)-maxGroupHistory):]
 }
 
-func (a *App) checkGroupMessage(msg matrix.Message) bool {
-	a.mu.Lock()
-	defer a.mu.Unlock()
+// recordAgentActivity records what the bot posted in a room: its text, the
+// files it sent, or a reaction.
+func (a *App) recordAgentActivity(ctx context.Context, conversationID, text string, files []string) {
+	if text == "" && len(files) == 0 {
+		return
+	}
 
-	if a.groupTriggerRegex == nil {
+	name, userID := a.matrix.OwnIdentity(ctx, conversationID)
+	if name == "" {
+		name = userID
+	}
+
+	if text != "" {
+		a.recordHistory(conversationID, name, true, text)
+	}
+
+	for _, file := range files {
+		a.recordHistory(conversationID, name, true, "[sent a file: "+filepath.Base(file)+"]")
+	}
+}
+
+// checkGroupMessage asks the group trigger script whether the agent should
+// see msg. A failing script delivers the message, so the bot is never deaf.
+func (a *App) checkGroupMessage(ctx context.Context, msg matrix.Message) bool {
+	if a.groupTriggerScript == "" {
 		return true
 	}
 
-	st := a.getOrCreateFilterState(msg.ConversationID)
-	shouldProcess := a.groupTriggerRegex.MatchString(msg.Text) || st.lastSenderIsAgent
-	st.lastSenderIsAgent = false
+	a.mu.Lock()
+	input := newGroupTriggerInput(a.groupHistory[msg.ConversationID], senderLabel(msg), msg.Text, time.Now())
+	a.mu.Unlock()
 
-	return shouldProcess
+	respond, output, err := runGroupTrigger(ctx, a.groupTriggerScript, a.groupTriggerTimeout, input)
+	if err != nil {
+		slog.Warn("group trigger failed, delivering message",
+			"conversation", msg.ConversationID, "error", err, "output", output)
+
+		return true
+	}
+
+	slog.Info("group trigger", "conversation", msg.ConversationID, "respond", respond, "output", output)
+
+	return respond
 }
 
 // buildContextTags returns a block of XML-style context tags derived from the
@@ -490,7 +523,8 @@ func escape(s string) string {
 // sendReaction validates that the requested message is known in the current
 // conversation before sending it to Matrix.
 func (a *App) sendReaction(ctx context.Context, conversationID string, reaction reactionRequest) {
-	if a.outbox.Get(ctx, conversationID, reaction.messageID) == "" {
+	target := a.outbox.Get(ctx, conversationID, reaction.messageID)
+	if target == "" {
 		slog.Warn("ignoring reaction to unknown message",
 			"conversation", conversationID,
 			"message", reaction.messageID,
@@ -506,7 +540,7 @@ func (a *App) sendReaction(ctx context.Context, conversationID string, reaction 
 			"error", err,
 		)
 	} else {
-		a.recordAgentActivity(conversationID)
+		a.recordAgentActivity(ctx, conversationID, "[reacted "+reaction.emoji+" to: "+target+"]", nil)
 	}
 }
 
@@ -524,7 +558,8 @@ func (a *App) deliverVoiceReply(ctx context.Context, defaultRoomID, reply string
 }
 
 func (a *App) deliverVoiceToMatrix(ctx context.Context, roomID, text string, filePaths []string) VoiceResponse {
-	sentFileCount, filesOK := a.uploadVoiceFiles(ctx, roomID, filePaths)
+	sentFiles, filesOK := a.uploadVoiceFiles(ctx, roomID, filePaths)
+	a.recordAgentActivity(ctx, roomID, "", sentFiles)
 
 	var sentID string
 
@@ -536,13 +571,11 @@ func (a *App) deliverVoiceToMatrix(ctx context.Context, roomID, text string, fil
 		messageOK = sentID != ""
 		if messageOK {
 			a.outbox.Put(ctx, roomID, sentID, text)
+			a.recordAgentActivity(ctx, roomID, text, nil)
 		}
 	}
 
-	delivered := sentID != "" || sentFileCount > 0
-	if delivered {
-		a.recordAgentActivity(roomID)
-	}
+	delivered := sentID != "" || len(sentFiles) > 0
 
 	if !delivered || !messageOK || !filesOK {
 		return VoiceResponse{Text: "I couldn't send that to chat.", Delivery: deliveryVoice}
@@ -552,12 +585,12 @@ func (a *App) deliverVoiceToMatrix(ctx context.Context, roomID, text string, fil
 }
 
 func (a *App) deliverVoiceFiles(ctx context.Context, defaultRoomID, text string, filePaths []string) VoiceResponse {
-	_, filesOK := a.uploadVoiceFiles(ctx, defaultRoomID, filePaths)
+	sentFiles, filesOK := a.uploadVoiceFiles(ctx, defaultRoomID, filePaths)
+	a.recordAgentActivity(ctx, defaultRoomID, "", sentFiles)
+
 	if !filesOK {
 		text = "I couldn't send the file to chat."
 	} else if len(filePaths) > 0 {
-		a.recordAgentActivity(defaultRoomID)
-
 		if text == "" {
 			text = "I sent your file to chat."
 		}
@@ -566,18 +599,18 @@ func (a *App) deliverVoiceFiles(ctx context.Context, defaultRoomID, text string,
 	return VoiceResponse{Text: text, Delivery: deliveryVoice}
 }
 
-func (a *App) uploadVoiceFiles(ctx context.Context, roomID string, filePaths []string) (int, bool) {
+func (a *App) uploadVoiceFiles(ctx context.Context, roomID string, filePaths []string) ([]string, bool) {
 	if len(filePaths) == 0 {
-		return 0, true
+		return nil, true
 	}
 
 	if roomID == "" {
-		return 0, false
+		return nil, false
 	}
 
 	sentFiles, _ := a.sendFiles(ctx, roomID, filePaths, false)
 
-	return len(sentFiles), len(sentFiles) == len(filePaths)
+	return sentFiles, len(sentFiles) == len(filePaths)
 }
 
 // sendReplyWithFiles extracts <sendfile> tags, uploads each file, and sends
@@ -593,6 +626,8 @@ func (a *App) sendReplyWithFiles(
 
 	cleanReply, filePaths := extractSendFiles(reply)
 	sentFiles, fileErrors := a.sendFiles(ctx, conversationID, filePaths, reportFileErrors)
+	a.recordAgentActivity(ctx, conversationID, "", sentFiles)
+
 	cleanReply += fileErrors
 
 	var sentID string
@@ -600,14 +635,14 @@ func (a *App) sendReplyWithFiles(
 	if cleanReply != "" {
 		sentID = a.matrix.SendMessage(ctx, conversationID, cleanReply, replyToID)
 		a.outbox.Put(ctx, conversationID, sentID, cleanReply)
+
+		if sentID != "" {
+			a.recordAgentActivity(ctx, conversationID, cleanReply, nil)
+		}
 	}
 
 	if background {
 		a.recordBackgroundReply(ctx, conversationID, sentID, cleanReply, sentFiles)
-	}
-
-	if sentID != "" || len(sentFiles) > 0 {
-		a.recordAgentActivity(conversationID)
 	}
 }
 

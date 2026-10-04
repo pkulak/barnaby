@@ -278,59 +278,40 @@ func TestDiscoverSkills_Symlinks(t *testing.T) {
 	}
 }
 
-func TestLoadConfig_GroupTriggerRegex(t *testing.T) {
+func TestLoadConfig_GroupTriggerScript(t *testing.T) {
 	t.Parallel()
 
-	t.Run("unset", func(t *testing.T) {
-		t.Parallel()
+	dir := t.TempDir()
+	script := filepath.Join(dir, "trigger")
+	plain := filepath.Join(dir, "plain")
 
-		cfg, err := loadConfig(testEnv(baseMatrixEnv()))
-		if err != nil {
-			t.Fatalf("loadConfig: %v", err)
-		}
+	if err := os.WriteFile(script, []byte("#!/bin/sh\n"), 0o755); err != nil { //nolint:gosec // must be executable
+		t.Fatal(err)
+	}
 
-		if cfg.GroupTriggerRegex != nil {
-			t.Errorf("GroupTriggerRegex = %v, want nil", cfg.GroupTriggerRegex)
-		}
-	})
+	if err := os.WriteFile(plain, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
 
-	t.Run("valid", func(t *testing.T) {
-		t.Parallel()
+	cfg, err := loadConfig(testEnv(baseMatrixEnv()))
+	if err != nil || cfg.GroupTriggerScript != "" {
+		t.Errorf("unset: GroupTriggerScript = %q, err = %v; want empty", cfg.GroupTriggerScript, err)
+	}
 
-		env := baseMatrixEnv()
-		env["OPENCROW_GROUP_TRIGGER_REGEX"] = `(?i)\b(barnaby|barn)\b`
+	env := baseMatrixEnv()
+	env["OPENCROW_GROUP_TRIGGER_SCRIPT"] = script
 
-		cfg, err := loadConfig(testEnv(env))
-		if err != nil {
-			t.Fatalf("loadConfig: %v", err)
-		}
+	cfg, err = loadConfig(testEnv(env))
+	if err != nil || cfg.GroupTriggerScript != script {
+		t.Errorf("executable: GroupTriggerScript = %q, err = %v; want %q", cfg.GroupTriggerScript, err, script)
+	}
 
-		if cfg.GroupTriggerRegex == nil {
-			t.Fatal("GroupTriggerRegex is nil, want compiled regex")
-		}
-
-		if !cfg.GroupTriggerRegex.MatchString("Hey Barn, what's up?") {
-			t.Error("regex did not match expected string")
-		}
-
-		if cfg.GroupTriggerRegex.MatchString("Hello everyone") {
-			t.Error("regex matched unexpected string")
-		}
-	})
-
-	t.Run("invalid", func(t *testing.T) {
-		t.Parallel()
-
-		env := baseMatrixEnv()
-		env["OPENCROW_GROUP_TRIGGER_REGEX"] = `[unclosed`
+	for _, bad := range []string{plain, filepath.Join(dir, "missing")} {
+		env["OPENCROW_GROUP_TRIGGER_SCRIPT"] = bad
 
 		_, err := loadConfig(testEnv(env))
-		if err == nil {
-			t.Fatal("expected error for invalid regex, got nil")
+		if err == nil || !strings.Contains(err.Error(), "OPENCROW_GROUP_TRIGGER_SCRIPT") {
+			t.Errorf("%s: err = %v, want OPENCROW_GROUP_TRIGGER_SCRIPT error", bad, err)
 		}
-
-		if !strings.Contains(err.Error(), "invalid OPENCROW_GROUP_TRIGGER_REGEX") {
-			t.Errorf("error %q does not mention OPENCROW_GROUP_TRIGGER_REGEX", err.Error())
-		}
-	})
+	}
 }

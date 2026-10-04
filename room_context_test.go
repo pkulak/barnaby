@@ -271,11 +271,11 @@ func TestApp_BackgroundReplyIsPrependedToNextChatPrompt(t *testing.T) {
 	}
 }
 
-func TestApp_GroupFollowUpSeesBackgroundReplyWithoutMention(t *testing.T) {
+func TestApp_GroupFollowUpSeesBackgroundReply(t *testing.T) {
 	t.Parallel()
 
 	app, _ := newTestApp(t)
-	app.SetGroupTriggerRegex(groupTriggerTestRe)
+	app.SetGroupTriggerScript(writeTriggerScript(t, "exit 0"))
 
 	ctx := t.Context()
 

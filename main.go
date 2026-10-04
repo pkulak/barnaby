@@ -340,9 +340,7 @@ func wireServices(
 	app.SetBackgroundWorker(svc.backgroundWorker)
 	wireHTTPServices(cfg, inbox, app, &svc)
 
-	if cfg.GroupTriggerRegex != nil {
-		app.SetGroupTriggerRegex(cfg.GroupTriggerRegex)
-	}
+	app.SetGroupTriggerScript(cfg.GroupTriggerScript)
 
 	workers := []*Worker{svc.worker, svc.backgroundWorker, svc.voiceWorker, svc.mcpWorker}
 	for _, worker := range workers {

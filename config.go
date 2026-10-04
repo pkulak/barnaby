@@ -4,20 +4,21 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 )
 
 type Config struct {
-	Matrix            MatrixConfig
-	Pi                PiConfig
-	BackgroundPi      PiConfig
-	VoicePi           PiConfig
-	MCPPi             PiConfig
-	HTTP              HTTPConfig
-	GroupTriggerRegex *regexp.Regexp
+	Matrix       MatrixConfig
+	Pi           PiConfig
+	BackgroundPi PiConfig
+	VoicePi      PiConfig
+	MCPPi        PiConfig
+	HTTP         HTTPConfig
+	// GroupTriggerScript decides which group messages reach the agent.
+	GroupTriggerScript string
 }
 
 type HTTPConfig struct {
@@ -93,15 +94,11 @@ func loadConfig(getenv func(string) string) (*Config, error) {
 	allowedUsers := parseAllowedUsers(env.list("OPENCROW_ALLOWED_USERS"))
 	workingDir := env.or("OPENCROW_PI_WORKING_DIR", "/var/lib/opencrow")
 
-	var groupTriggerRegex *regexp.Regexp
-
-	if pattern := env.str("OPENCROW_GROUP_TRIGGER_REGEX"); pattern != "" {
-		re, err := compileGroupTriggerRegex(pattern)
-		if err != nil {
-			return nil, err
+	groupTriggerScript := env.str("OPENCROW_GROUP_TRIGGER_SCRIPT")
+	if groupTriggerScript != "" {
+		if _, err := exec.LookPath(groupTriggerScript); err != nil {
+			return nil, fmt.Errorf("OPENCROW_GROUP_TRIGGER_SCRIPT: %w", err)
 		}
-
-		groupTriggerRegex = re
 	}
 
 	httpCfg, err := loadHTTPConfig(env)
@@ -119,12 +116,12 @@ func loadConfig(getenv func(string) string) (*Config, error) {
 			PickleKey:    env.or("OPENCROW_MATRIX_PICKLE_KEY", "opencrow-default-pickle-key"),
 			CryptoDBPath: env.or("OPENCROW_MATRIX_CRYPTO_DB", filepath.Join(workingDir, "crypto.db")),
 		},
-		Pi:                loadPiConfig(env, workingDir, idleTimeout, skills),
-		BackgroundPi:      loadBackgroundPiConfig(env, workingDir, idleTimeout, skills),
-		VoicePi:           loadVoicePiConfig(env, workingDir, idleTimeout, skills),
-		MCPPi:             loadMCPPiConfig(env, workingDir, idleTimeout, skills),
-		HTTP:              httpCfg,
-		GroupTriggerRegex: groupTriggerRegex,
+		Pi:                 loadPiConfig(env, workingDir, idleTimeout, skills),
+		BackgroundPi:       loadBackgroundPiConfig(env, workingDir, idleTimeout, skills),
+		VoicePi:            loadVoicePiConfig(env, workingDir, idleTimeout, skills),
+		MCPPi:              loadMCPPiConfig(env, workingDir, idleTimeout, skills),
+		HTTP:               httpCfg,
+		GroupTriggerScript: groupTriggerScript,
 	}
 
 	if err := cfg.Matrix.validate(); err != nil {
@@ -221,15 +218,6 @@ func requireField(v, name string) error {
 	}
 
 	return nil
-}
-
-func compileGroupTriggerRegex(pattern string) (*regexp.Regexp, error) {
-	re, err := regexp.Compile(pattern)
-	if err != nil {
-		return nil, fmt.Errorf("invalid OPENCROW_GROUP_TRIGGER_REGEX %q: %w", pattern, err)
-	}
-
-	return re, nil
 }
 
 // envReader wraps a getenv function with typed accessors so callers do not
