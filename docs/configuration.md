@@ -132,8 +132,8 @@ The script gets the room's recent messages and the current one as JSON on stdin:
 ```json
 {
   "history": [
-    {"from": "Gwen", "is_bot": false, "ago": "3m", "text": "barn, when do the bins go out?"},
-    {"from": "Barnaby", "is_bot": true, "ago": "2m", "text": "Tuesday morning, before 7am."}
+    {"from": "Gwen", "is_bot": false, "ago": "3m", "text": "crow, when do the bins go out?"},
+    {"from": "Crow", "is_bot": true, "ago": "2m", "text": "Tuesday morning, before 7am."}
   ],
   "message": {"from": "Gwen", "text": "and recycling?"}
 }
@@ -148,6 +148,8 @@ The history lives in memory, so it starts empty after a restart.
 Exit `0` to send the message to the agent and `1` to skip it. Skipped messages
 still end up in the room context above. Anything the script prints is logged
 with the decision, which makes a probability or reason handy to print.
+See [`examples/group_trigger.py`](../examples/group_trigger.py) for a script
+that asks Jev.
 
 Any other exit code, or running longer than 10 seconds, is logged as a warning
 and the message goes to the agent anyway. A broken script makes the bot chatty,
