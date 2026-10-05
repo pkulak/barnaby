@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	_ "embed"
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -18,20 +17,15 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const (
-	barnabyDBFile      = "barnaby.db"
-	legacyOutboxDBFile = "sent_messages.db"
-)
+const barnabyDBFile = "barnaby.db"
+
+// version is set via -ldflags at build time.
+var version = "dev"
 
 //go:embed sqlc/schema.sql
 var dbSchema string
 
 func main() {
-	if len(os.Args) > 1 && (os.Args[1] == "-version" || os.Args[1] == "--version") {
-		fmt.Fprintln(os.Stdout, versionString())
-		os.Exit(0)
-	}
-
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 		Level: parseLogLevel(os.Getenv("BARNABY_LOG_LEVEL")),
 		ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
@@ -202,112 +196,7 @@ func openDB(ctx context.Context, sessionDir string) (*sql.DB, error) {
 		return nil, fmt.Errorf("migrating schema: %w", err)
 	}
 
-	// Migrate existing databases: add newer inbox columns if absent.
-	if err := migrateInboxConversationID(ctx, db); err != nil {
-		db.Close()
-
-		return nil, fmt.Errorf("migrating inbox conversation_id: %w", err)
-	}
-
-	if err := migrateInboxMessageMetadata(ctx, db); err != nil {
-		db.Close()
-
-		return nil, fmt.Errorf("migrating inbox message metadata: %w", err)
-	}
-
-	if err := migrateLegacyOutbox(ctx, db, sessionDir); err != nil {
-		slog.Warn("failed to migrate legacy sent_messages.db", "error", err)
-	}
-
 	return db, nil
-}
-
-// migrateInboxConversationID adds the conversation_id column to the inbox
-// table if it is missing.
-func migrateInboxConversationID(ctx context.Context, db *sql.DB) error {
-	var colName string
-
-	err := db.QueryRowContext(ctx, "SELECT name FROM pragma_table_info('inbox') WHERE name = 'conversation_id'").Scan(&colName)
-	if err == nil {
-		// Column already exists — nothing to do.
-		return nil
-	}
-
-	slog.Info("migrating inbox: adding conversation_id column")
-
-	if _, err := db.ExecContext(ctx, `ALTER TABLE inbox ADD COLUMN conversation_id TEXT NOT NULL DEFAULT ''`); err != nil {
-		return fmt.Errorf("adding conversation_id column: %w", err)
-	}
-
-	return nil
-}
-
-func migrateInboxMessageMetadata(ctx context.Context, db *sql.DB) error {
-	columns := []struct {
-		name      string
-		statement string
-	}{
-		{"message_id", `ALTER TABLE inbox ADD COLUMN message_id TEXT NOT NULL DEFAULT ''`},
-		{"is_group", `ALTER TABLE inbox ADD COLUMN is_group BOOLEAN NOT NULL DEFAULT FALSE`},
-		{"claimed_at", `ALTER TABLE inbox ADD COLUMN claimed_at TEXT NOT NULL DEFAULT ''`},
-	}
-
-	for _, column := range columns {
-		var count int
-		if err := db.QueryRowContext(ctx, "SELECT count(*) FROM pragma_table_info('inbox') WHERE name = ?", column.name).Scan(&count); err != nil {
-			return fmt.Errorf("checking %s column: %w", column.name, err)
-		}
-
-		if count != 0 {
-			continue
-		}
-
-		slog.Info("migrating inbox: adding column", "column", column.name)
-
-		if _, err := db.ExecContext(ctx, column.statement); err != nil {
-			return fmt.Errorf("adding %s column: %w", column.name, err)
-		}
-	}
-
-	return nil
-}
-
-func migrateLegacyOutbox(ctx context.Context, db *sql.DB, sessionDir string) error {
-	legacyPath := filepath.Join(sessionDir, legacyOutboxDBFile)
-
-	if _, err := os.Stat(legacyPath); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil
-		}
-
-		return fmt.Errorf("checking legacy db: %w", err)
-	}
-
-	slog.Info("migrating legacy sent_messages.db into barnaby.db")
-
-	if _, err := db.ExecContext(ctx, "ATTACH DATABASE ? AS legacy", legacyPath); err != nil {
-		return fmt.Errorf("attaching legacy db: %w", err)
-	}
-
-	defer db.ExecContext(ctx, "DETACH DATABASE legacy") //nolint:errcheck // best-effort detach
-
-	if _, err := db.ExecContext(ctx, `
-		INSERT OR IGNORE INTO sent_messages (conversation_id, message_id, text)
-		SELECT conversation_id, message_id, text FROM legacy.sent_messages
-	`); err != nil {
-		return fmt.Errorf("copying legacy rows: %w", err)
-	}
-
-	if err := os.Remove(legacyPath); err != nil {
-		return fmt.Errorf("removing legacy db: %w", err)
-	}
-
-	_ = os.Remove(legacyPath + "-wal")
-	_ = os.Remove(legacyPath + "-shm")
-
-	slog.Info("legacy sent_messages.db migrated and removed")
-
-	return nil
 }
 
 // wireServices creates the Matrix backend, app, and workers using two-phase init.

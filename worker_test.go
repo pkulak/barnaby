@@ -603,28 +603,6 @@ func TestWorker_BackgroundExplicitCancellationCompletesTrigger(t *testing.T) {
 	}
 }
 
-func TestWorker_BackgroundToolCallsAreSilent(t *testing.T) {
-	t.Parallel()
-
-	w := newFakeBackgroundPiWorker(t)
-	w.piCfg.ShowToolCalls = true
-	matrixClient := &mockMatrix{}
-	w.SetMatrix(matrixClient)
-
-	db := newTestDB(t.Context(), t)
-	app := NewApp(matrixClient, w, newTestInboxWithDB(t.Context(), t, db), db)
-	w.SetApp(app)
-
-	w.processItem(t.Context(), Inbox{Source: sourceTrigger, Content: "tool-use-test"})
-
-	matrixClient.mu.Lock()
-	defer matrixClient.mu.Unlock()
-
-	if len(matrixClient.sentMessages) != 1 || matrixClient.sentMessages[0].text != "Tool work complete" {
-		t.Errorf("background messages = %+v, want only final reply", matrixClient.sentMessages)
-	}
-}
-
 func TestWorker_ChatProviderFailureHasRecoveryCommands(t *testing.T) {
 	t.Parallel()
 

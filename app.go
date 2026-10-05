@@ -709,40 +709,6 @@ func (a *App) recordBackgroundReply(
 	}
 }
 
-// formatToolCall produces a Matrix-formatted summary of a tool invocation.
-func formatToolCall(evt ToolCallEvent) string {
-	switch evt.ToolName {
-	case "bash":
-		return formatBashCall(evt)
-	case "read":
-		return formatPathCall(evt, "📄 reading", "file")
-	case "edit":
-		return formatPathCall(evt, "✏️ editing", "file")
-	case "write":
-		return formatPathCall(evt, "📝 writing", "file")
-	default:
-		return "🔧 " + evt.ToolName
-	}
-}
-
-func formatBashCall(evt ToolCallEvent) string {
-	cmd, ok := evt.Args["command"].(string)
-	if !ok {
-		return "🔧 bash"
-	}
-
-	return fmt.Sprintf("🔧\n```sh\n%s\n```", cmd)
-}
-
-func formatPathCall(evt ToolCallEvent, prefix, fallback string) string {
-	p, ok := evt.Args["path"].(string)
-	if !ok {
-		return prefix + " " + fallback
-	}
-
-	return prefix + " `" + p + "`"
-}
-
 // systemPrompt returns the full system prompt including Matrix-specific context.
 func (a *App) systemPrompt(basePrompt string) string {
 	extra := a.matrix.SystemPromptExtra()

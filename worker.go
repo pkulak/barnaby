@@ -529,7 +529,6 @@ func (w *Worker) processPrompt(ctx context.Context, item Inbox) bool {
 	}
 
 	onToolCall := w.toolCallHandler(ctx, item, convID)
-	taskStart := time.Now()
 
 	pi, reply, err := w.sendWithRetry(ctx, prompt, onToolCall)
 	if err != nil {
@@ -548,10 +547,6 @@ func (w *Worker) processPrompt(ctx context.Context, item Inbox) bool {
 
 	if shouldSuppressReply(reply, item.Source, w.background) {
 		return false
-	}
-
-	if w.piCfg.DebugTiming {
-		reply += fmt.Sprintf("\n\n⏱ %s", time.Since(taskStart).Round(time.Millisecond))
 	}
 
 	reply, targetRoom := extractSendTo(reply)
@@ -675,7 +670,7 @@ func (w *Worker) prepareReply(
 	pi *PiProcess,
 	item Inbox,
 	convID, reply string,
-	onToolCall func(ToolCallEvent),
+	onToolCall func(),
 ) string {
 	reply, reaction := extractReaction(reply)
 	if item.Source == sourceUser && reply == "" && reaction == nil {
@@ -692,32 +687,29 @@ func (w *Worker) prepareReply(
 	return reply
 }
 
-// toolCallHandler reports visible tool calls when configured and acknowledges
-// the first tool used for a Matrix group message with an eyes reaction.
-func (w *Worker) toolCallHandler(ctx context.Context, item Inbox, convID string) func(ToolCallEvent) {
-	acknowledge := !w.background && item.Source == sourceUser && item.IsGroup && item.MessageID != ""
-	if w.background || (!acknowledge && !w.piCfg.ShowToolCalls) {
+// toolCallHandler acknowledges the first tool used for a Matrix group message
+// with an eyes reaction.
+func (w *Worker) toolCallHandler(ctx context.Context, item Inbox, convID string) func() {
+	if w.background || item.Source != sourceUser || !item.IsGroup || item.MessageID == "" {
 		return nil
 	}
 
 	notificationCtx := context.WithoutCancel(ctx)
 	acknowledged := false
 
-	return func(evt ToolCallEvent) {
-		if acknowledge && !acknowledged {
-			acknowledged = true
-
-			go func() {
-				reactionCtx, cancel := context.WithTimeout(notificationCtx, 10*time.Second)
-				defer cancel()
-
-				w.app.sendReaction(reactionCtx, convID, reactionRequest{messageID: item.MessageID, emoji: "👀"})
-			}()
+	return func() {
+		if acknowledged {
+			return
 		}
 
-		if w.piCfg.ShowToolCalls {
-			w.matrix.SendMessage(notificationCtx, convID, formatToolCall(evt), "")
-		}
+		acknowledged = true
+
+		go func() {
+			reactionCtx, cancel := context.WithTimeout(notificationCtx, 10*time.Second)
+			defer cancel()
+
+			w.app.sendReaction(reactionCtx, convID, reactionRequest{messageID: item.MessageID, emoji: "👀"})
+		}()
 	}
 }
 
@@ -897,7 +889,7 @@ func isContextCancellation(ctx context.Context, err error) bool {
 func (w *Worker) sendWithRetry(
 	ctx context.Context,
 	prompt string,
-	onToolCall func(ToolCallEvent),
+	onToolCall func(),
 ) (*PiProcess, string, error) {
 	pi, err := w.ensurePi(ctx)
 	if err != nil {
@@ -1024,7 +1016,7 @@ func (w *Worker) resolveRoomID() string {
 	return id
 }
 
-func (w *Worker) retryEmptyResponse(ctx context.Context, pi *PiProcess, onToolCall func(ToolCallEvent)) string {
+func (w *Worker) retryEmptyResponse(ctx context.Context, pi *PiProcess, onToolCall func()) string {
 	slog.Warn("worker: empty response, re-prompting for summary")
 
 	reply, err := pi.sendAndWait(ctx, "You just completed a task but your response contained no text for the user. Please briefly summarize what you did or respond to the user's message.", onToolCall)

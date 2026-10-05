@@ -1,6 +1,7 @@
 package main
 
 import (
+	_ "embed"
 	"errors"
 	"fmt"
 	"os"
@@ -52,12 +53,10 @@ type PiConfig struct {
 	Model      string
 	// WorkingDir is the agent's cwd. In system prompts, refer to this as the
 	// "working directory".
-	WorkingDir    string
-	IdleTimeout   time.Duration
-	SystemPrompt  string
-	Skills        []string
-	ShowToolCalls bool // BARNABY_SHOW_TOOL_CALLS — relay tool_execution_start events to chat
-	DebugTiming   bool // BARNABY_DEBUG_TIMING — append timing info to each reply
+	WorkingDir   string
+	IdleTimeout  time.Duration
+	SystemPrompt string
+	Skills       []string
 	// CompactOnIdle compacts a session before the idle reaper kills its pi
 	// process, so the on-disk session is smaller the next time it resumes.
 	CompactOnIdle bool // BARNABY_PI_COMPACT_ON_IDLE
@@ -81,16 +80,12 @@ func LoadConfig() (*Config, error) {
 func loadConfig(getenv func(string) string) (*Config, error) {
 	env := envReader{getenv: getenv}
 
-	if backendType := env.str("BARNABY_BACKEND"); backendType != "" && backendType != "matrix" {
-		return nil, fmt.Errorf("BARNABY_BACKEND=%q is not supported; Barnaby only supports Matrix", backendType)
-	}
-
 	idleTimeout, err := env.duration("BARNABY_PI_IDLE_TIMEOUT", 30*time.Minute)
 	if err != nil {
 		return nil, err
 	}
 
-	skills := parseSkills(env)
+	skills := discoverSkills(env.str("BARNABY_PI_SKILLS_DIR"))
 	allowedUsers := parseAllowedUsers(env.list("BARNABY_ALLOWED_USERS"))
 	workingDir := env.or("BARNABY_PI_WORKING_DIR", "/var/lib/barnaby")
 
@@ -171,8 +166,6 @@ func loadPiConfig(env envReader, workingDir string, idleTimeout time.Duration, s
 		IdleTimeout:   idleTimeout,
 		SystemPrompt:  loadSoul(env),
 		Skills:        skills,
-		ShowToolCalls: env.bool("BARNABY_SHOW_TOOL_CALLS"),
-		DebugTiming:   env.bool("BARNABY_DEBUG_TIMING"),
 		CompactOnIdle: env.bool("BARNABY_PI_COMPACT_ON_IDLE"),
 		DefaultRoomID: env.str("BARNABY_MATRIX_ROOM_ID"),
 	}
@@ -271,18 +264,12 @@ func (e envReader) duration(key string, def time.Duration) (time.Duration, error
 	return d, nil
 }
 
-func parseSkills(env envReader) []string {
-	skills := env.list("BARNABY_PI_SKILLS")
-
-	if dir := env.str("BARNABY_PI_SKILLS_DIR"); dir != "" {
-		skills = append(skills, discoverSkills(dir)...)
-	}
-
-	return skills
-}
-
 // discoverSkills scans a directory for subdirectories containing SKILL.md.
 func discoverSkills(dir string) []string {
+	if dir == "" {
+		return nil
+	}
+
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
@@ -315,27 +302,26 @@ func parseAllowedUsers(users []string) map[string]struct{} {
 	return allowedUsers
 }
 
-// loadSoul reads the system prompt from BARNABY_SOUL_FILE if set,
-// falling back to BARNABY_PI_SYSTEM_PROMPT, then the built-in default.
+//go:embed SOUL.md
+var defaultSoul string
+
+// loadSoul reads the system prompt from BARNABY_SOUL_FILE, falling back to
+// the built-in SOUL.md.
 func loadSoul(env envReader) string {
-	if path := env.str("BARNABY_SOUL_FILE"); path != "" {
-		data, err := os.ReadFile(path)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "warning: failed to read soul file %s: %v\n", path, err)
-		} else {
-			return string(data)
-		}
+	path := env.str("BARNABY_SOUL_FILE")
+	if path == "" {
+		return defaultSoul
 	}
 
-	return env.or("BARNABY_PI_SYSTEM_PROMPT", defaultSoul)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: failed to read soul file %s: %v\n", path, err)
+
+		return defaultSoul
+	}
+
+	return string(data)
 }
-
-const defaultSoul = `You are Barnaby, an AI assistant communicating via Matrix.
-
-Be genuinely helpful, not performatively helpful. Skip the filler words — just help.
-Have opinions. Be resourceful before asking. Earn trust through competence.
-Be concise when needed, thorough when it matters. Not a corporate drone. Not a sycophant. Just good.
-When using tools, prefer standard Unix tools. Check output before proceeding. Break complex tasks into steps and execute them.`
 
 const defaultTriggerPrompt = `External trigger received.`
 

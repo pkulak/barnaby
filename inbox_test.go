@@ -286,69 +286,6 @@ func TestOpenDB_Pragmas(t *testing.T) {
 	}
 }
 
-func TestOpenDB_MigratesInboxColumns(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	dir := t.TempDir()
-
-	// Create a database with the old schema (no conversation_id column).
-	dbPath := dir + "/barnaby.db"
-
-	db, err := sql.Open("sqlite", dbPath+sqliteDSNParams)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	_, err = db.ExecContext(ctx, `
-		CREATE TABLE IF NOT EXISTS inbox (
-			id         INTEGER PRIMARY KEY AUTOINCREMENT,
-			priority   INTEGER NOT NULL DEFAULT 2,
-			source     TEXT    NOT NULL,
-			content    TEXT    NOT NULL DEFAULT '',
-			reply_to   TEXT    NOT NULL DEFAULT '',
-			created_at TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-		);
-	`)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Insert a row with the old schema.
-	_, err = db.ExecContext(ctx, "INSERT INTO inbox (priority, source, content) VALUES (0, 'user', 'old row')")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	db.Close()
-
-	// Reopen via openDB, which should migrate the schema.
-	db2, err := openDB(ctx, dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db2.Close()
-
-	// Verify all added columns exist with backward-compatible defaults.
-	var (
-		conversationID string
-		messageID      string
-		isGroup        bool
-	)
-
-	err = db2.QueryRowContext(ctx, `
-		SELECT conversation_id, message_id, is_group
-		FROM inbox WHERE source = 'user'
-	`).Scan(&conversationID, &messageID, &isGroup)
-	if err != nil {
-		t.Fatalf("failed to query migrated inbox columns: %v", err)
-	}
-
-	if conversationID != "" || messageID != "" || isGroup {
-		t.Errorf("migrated defaults = (%q, %q, %v)", conversationID, messageID, isGroup)
-	}
-}
-
 func must(t *testing.T, err error) {
 	t.Helper()
 

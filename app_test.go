@@ -807,21 +807,3 @@ func TestApp_SystemPrompt(t *testing.T) {
 		})
 	}
 }
-
-func TestFormatToolCall(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		event ToolCallEvent
-		want  string
-	}{
-		{ToolCallEvent{ToolName: "bash", Args: map[string]any{"command": "ls -la"}}, "🔧\n```sh\nls -la\n```"},
-		{ToolCallEvent{ToolName: "read", Args: map[string]any{"path": "/etc/hosts"}}, "📄 reading `/etc/hosts`"},
-	}
-
-	for _, tc := range cases {
-		if got := formatToolCall(tc.event); got != tc.want {
-			t.Errorf("formatToolCall(%s) = %q, want %q", tc.event.ToolName, got, tc.want)
-		}
-	}
-}

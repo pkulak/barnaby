@@ -18,12 +18,6 @@ const (
 	scannerMaxBufSize     = 64 << 20 // 64 MiB
 )
 
-// ToolCallEvent contains information about a tool invocation relayed from pi.
-type ToolCallEvent struct {
-	ToolName string
-	Args     map[string]any
-}
-
 // PiProcess manages a single pi --mode rpc subprocess.
 // The caller (Worker) is responsible for serializing access — only one
 // goroutine calls sendAndWait at a time, so no mutex is needed.
@@ -40,8 +34,8 @@ type PiProcess struct {
 	cmd        *exec.Cmd
 	stdin      io.WriteCloser
 	done       chan struct{}
-	events     <-chan rpcParsed    // single persistent reader feeds all waiters
-	onToolCall func(ToolCallEvent) // optional callback for tool_execution_start events
+	events     <-chan rpcParsed // single persistent reader feeds all waiters
+	onToolCall func()           // optional callback for tool_execution_start events
 }
 
 // StartPi spawns a pi --mode rpc subprocess for the given room.

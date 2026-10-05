@@ -29,11 +29,6 @@ buildGoModule (finalAttrs: {
     export GOFLAGS="-mod=mod -trimpath -tags=goolm"
   '';
 
-  postInstall = ''
-    mkdir -p $out/share/barnaby
-    cp SOUL.md $out/share/barnaby/SOUL.md
-  '';
-
   meta = {
     description = "Matrix bot bridging messages to an AI coding agent via pi RPC";
     homepage = "https://github.com/pkulak/barnaby";

@@ -12,7 +12,7 @@ The NixOS module provides a declarative `extensions` option. Set a value to
 pass a path for a custom extension:
 
 ```nix
-services.barnaby.extensions = {
+services.barnaby.instances.barnaby.extensions = {
   reminders = true;                  # packaged extension (resolved from flake)
   my-ext = ./extensions/my-ext.ts;   # custom extension
 };
@@ -26,7 +26,7 @@ Extra keys for pi's `settings.json` (e.g. `packages`, `compaction`) can be
 added via `piSettings`:
 
 ```nix
-services.barnaby.piSettings = {
+services.barnaby.instances.barnaby.piSettings = {
   compaction.enabled = true;
 };
 ```
@@ -40,7 +40,7 @@ The SQLite binary is patched into the extension at build time, so it does not
 need to be added to `extraPackages`.
 
 ```nix
-services.barnaby.extensions.reminders = true;
+services.barnaby.instances.barnaby.extensions.reminders = true;
 ```
 
 See [Reminders](reminders.md) for usage details and

@@ -51,7 +51,7 @@ Each line is a separate trigger. The pipe is unauthenticated: any process that c
 ### Enabling on NixOS
 
 ```nix
-services.barnaby.extensions.reminders = true;
+services.barnaby.instances.barnaby.extensions.reminders = true;
 ```
 
 This pulls the flake's `extension-reminders` package, which bakes the `sqlite3` store path into the extension. For non-Nix installs the extension falls back to PATH lookup, so make sure `sqlite3` is available there.

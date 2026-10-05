@@ -10,17 +10,12 @@ let
 
   jsonFormat = pkgs.formats.json { };
 
-  # Derive container name and state directory from instance name.
-  # The "default" instance (top-level enable) is named "barnaby".
-  containerNameOf = name: if name == "default" then "barnaby" else name;
-  stateDirOf = name: "/var/lib/${containerNameOf name}";
+  # Each instance's container is named after it.
+  stateDirOf = name: "/var/lib/${name}";
 
-  # Shared option definitions used by both the top-level (default instance)
-  # and each named instance submodule.
   mkInstanceOptions =
     { name, config }:
     let
-      barnabyPkg = config.package;
       stateDir = stateDirOf name;
 
       skillsDir = pkgs.linkFarm "barnaby-skills-${name}" (
@@ -234,18 +229,6 @@ let
               description = "Working directory for pi subprocesses.";
             };
 
-            BARNABY_PI_SYSTEM_PROMPT = lib.mkOption {
-              type = lib.types.str;
-              default = "";
-              description = "Custom system prompt appended to pi. Empty uses the built-in default.";
-            };
-
-            BARNABY_PI_SKILLS = lib.mkOption {
-              type = lib.types.str;
-              default = "";
-              description = "Comma-separated list of additional skill paths to pass to pi via --skill. Prefer using the top-level `skills` option instead.";
-            };
-
             BARNABY_PI_SKILLS_DIR = lib.mkOption {
               type = lib.types.str;
               default = toString skillsDir;
@@ -255,8 +238,8 @@ let
 
             BARNABY_SOUL_FILE = lib.mkOption {
               type = lib.types.str;
-              default = "${barnabyPkg}/share/barnaby/SOUL.md";
-              description = "Path to SOUL.md personality file.";
+              default = "";
+              description = "Path to a file containing the system prompt. Empty uses the built-in SOUL.md.";
             };
 
             PI_CODING_AGENT_DIR = lib.mkOption {
@@ -295,18 +278,14 @@ let
       // mkInstanceOptions { inherit name config; };
     };
 
-  # Build the effective set of all enabled instances: the top-level "default"
-  # instance (when services.barnaby.enable is set) merged with all named
-  # instances from services.barnaby.instances.
-  effectiveInstances =
-    (lib.optionalAttrs cfg.enable { default = cfg; }) // lib.filterAttrs (_: i: i.enable) cfg.instances;
+  enabledInstances = lib.filterAttrs (_: i: i.enable) cfg.instances;
 
   mkInstanceConfig =
     name: icfg:
     let
       barnabyPkg = icfg.package;
 
-      containerName = containerNameOf name;
+      containerName = name;
       stateDir = stateDirOf name;
 
       # Resolve extension values: `true` means use the corresponding
@@ -462,58 +441,27 @@ let
 
     };
 
-  instanceConfigs = lib.mapAttrs mkInstanceConfig effectiveInstances;
+  instanceConfigs = lib.mapAttrs mkInstanceConfig enabledInstances;
 in
 {
-  options.services.barnaby = lib.mkOption {
-    type = lib.types.submodule (
-      { config, ... }:
+  options.services.barnaby.instances = lib.mkOption {
+    type = lib.types.attrsOf (lib.types.submodule instanceModule);
+    default = { };
+    description = "Barnaby Matrix bot instances. Each instance runs in its own container.";
+    example = lib.literalExpression ''
       {
-        options = {
-          enable = lib.mkEnableOption "Barnaby default instance";
-
-          instances = lib.mkOption {
-            type = lib.types.attrsOf (lib.types.submodule instanceModule);
-            default = { };
-            description = "Named Barnaby Matrix bot instances. Each instance runs in its own container.";
-            example = lib.literalExpression ''
-              {
-                mybot = {
-                  enable = true;
-                  piPackage = llm-agents.packages.''${system}.pi;
-                  environment.BARNABY_MATRIX_HOMESERVER = "https://matrix.example.com";
-                };
-              }
-            '';
-          };
-        }
-        // mkInstanceOptions {
-          name = "default";
-          inherit config;
+        mybot = {
+          enable = true;
+          piPackage = llm-agents.packages.''${system}.pi;
+          environment.BARNABY_MATRIX_HOMESERVER = "https://matrix.example.com";
         };
       }
-    );
-    default = { };
-    description = ''
-      Barnaby Matrix bot configuration. Use `enable` and the top-level
-      options for a single default instance, or `instances.<name>` for
-      multiple named instances with independent containers and data.
     '';
   };
 
   # Aggregate host-level config from all instances.
   config = lib.mkIf (instanceConfigs != { }) {
-    assertions = [
-      {
-        assertion = !(cfg.instances ? "default");
-        message = "services.barnaby: the instance name 'default' is reserved for the top-level configuration. Use a different name or configure via services.barnaby.enable with top-level options.";
-      }
-      {
-        assertion = !(effectiveInstances ? default && effectiveInstances ? barnaby);
-        message = "services.barnaby: the top-level instance and instances.barnaby both use the container name 'barnaby'. Rename the named instance or disable the top-level one.";
-      }
-    ]
-    ++ lib.concatLists (lib.mapAttrsToList (_: ic: ic.assertions) instanceConfigs);
+    assertions = lib.concatLists (lib.mapAttrsToList (_: ic: ic.assertions) instanceConfigs);
 
     environment.systemPackages = lib.concatLists (
       lib.mapAttrsToList (_: ic: ic.systemPackages) instanceConfigs
@@ -526,13 +474,11 @@ in
     # Work around stale machined registration after unclean shutdown.
     systemd.services = lib.mapAttrs' (
       name: ic:
-      lib.nameValuePair "container@${containerNameOf name}" {
+      lib.nameValuePair "container@${name}" {
         preStart = lib.mkBefore ic.containerPreStart;
       }
     ) instanceConfigs;
 
-    containers = lib.mapAttrs' (
-      name: ic: lib.nameValuePair (containerNameOf name) ic.container
-    ) instanceConfigs;
+    containers = lib.mapAttrs (_: ic: ic.container) instanceConfigs;
   };
 }

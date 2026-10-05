@@ -48,7 +48,7 @@ Or extract it from an existing Matrix client's session.
     self.inputs.barnaby.nixosModules.default
   ];
 
-  services.barnaby = {
+  services.barnaby.instances.barnaby = {
     enable = true;
     piPackage = self.inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}.pi;
 
@@ -91,13 +91,13 @@ ANTHROPIC_API_KEY=sk-...
 Then reference it:
 
 ```nix
-services.barnaby.environmentFiles = [
+services.barnaby.instances.barnaby.environmentFiles = [
   /run/secrets/barnaby-env
 ];
 ```
 
 If you want one room to act as the bot's default home for background traffic,
-add this to `services.barnaby.environment`:
+add this to `services.barnaby.instances.barnaby.environment`:
 
 ```nix
 BARNABY_MATRIX_ROOM_ID = "!your-room-id:matrix.org";
@@ -144,7 +144,7 @@ Skills teach the agent new capabilities. Extensions hook into the agent
 lifecycle:
 
 ```nix
-services.barnaby = {
+services.barnaby.instances.barnaby = {
   skills = {
     # Custom skill from a local directory
     my-skill = ./skills/my-skill;
@@ -164,7 +164,7 @@ See [Skills](skills.md) and [Extensions](extensions.md) for details.
 Create a `SOUL.md` file that defines the bot's personality and point to it:
 
 ```nix
-services.barnaby.environment.BARNABY_SOUL_FILE = "${./soul.md}";
+services.barnaby.instances.barnaby.environment.BARNABY_SOUL_FILE = "${./soul.md}";
 ```
 
 ```markdown

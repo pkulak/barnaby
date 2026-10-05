@@ -30,12 +30,8 @@ Send these as plain text messages in any conversation with the bot:
 | `BARNABY_PI_WORKING_DIR` | `/var/lib/barnaby` | Working directory for pi |
 | `BARNABY_PI_IDLE_TIMEOUT` | `30m` | Kill pi after this duration of inactivity |
 | `BARNABY_PI_COMPACT_ON_IDLE` | `false` | Compact an idle session before the reaper kills its pi process when it has at least 32k context tokens or an unknown token count. The reap that would make a session's 7th compaction starts a fresh session instead. Background work ignores this. |
-| `BARNABY_PI_SYSTEM_PROMPT` | built-in | Custom system prompt |
-| `BARNABY_SOUL_FILE` | _(empty)_ | Path to a file containing the system prompt (overrides `BARNABY_PI_SYSTEM_PROMPT`) |
-| `BARNABY_PI_SKILLS` | _(empty)_ | Comma-separated skill directory paths |
+| `BARNABY_SOUL_FILE` | built-in `SOUL.md` | Path to a file containing the system prompt |
 | `BARNABY_PI_SKILLS_DIR` | _(empty)_ | Directory containing skill subdirectories |
-| `BARNABY_SHOW_TOOL_CALLS` | `false` | Show tool invocations (bash, read, edit, …) as messages in the chat |
-| `BARNABY_DEBUG_TIMING` | `false` | Append task duration to each reply (useful for profiling local models) |
 
 ## HTTP voice configuration
 
@@ -205,7 +201,7 @@ For secrets that are plain key=value pairs (e.g. API keys, access tokens), use
 loaded by systemd's `EnvironmentFile=` directive before the service starts:
 
 ```nix
-services.barnaby.environmentFiles = [
+services.barnaby.instances.barnaby.environmentFiles = [
   /run/secrets/barnaby-env  # contains ANTHROPIC_API_KEY=sk-...
 ];
 ```

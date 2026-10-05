@@ -205,7 +205,7 @@ func (p *PiProcess) SessionStats(ctx context.Context) (SessionStats, error) { //
 // made during this prompt are forwarded to onToolCall when non-nil.
 // If ctx is cancelled, stdin is closed so a blocked command write returns.
 // The worker then kills the process so a stuck turn cannot block its queue.
-func (p *PiProcess) sendAndWait(ctx context.Context, message string, onToolCall func(ToolCallEvent)) (string, error) {
+func (p *PiProcess) sendAndWait(ctx context.Context, message string, onToolCall func()) (string, error) {
 	if !p.IsAlive() {
 		return "", errors.New("pi process is not alive")
 	}
@@ -343,10 +343,7 @@ func (p *PiProcess) handleSideEffects(evt rpcEvent) error {
 
 	case rpcTypeToolExecutionStart:
 		if p.onToolCall != nil {
-			p.onToolCall(ToolCallEvent{
-				ToolName: evt.ToolName,
-				Args:     evt.Args,
-			})
+			p.onToolCall()
 		}
 
 	case rpcTypeResponse:

@@ -30,7 +30,7 @@ The MCP endpoint is served at `/mcp` on the same listener as the
 `BARNABY_HTTP_BEARER_TOKEN` as well as its own token:
 
 ```nix
-services.barnaby = {
+services.barnaby.instances.barnaby = {
   environment.BARNABY_HTTP_LISTEN = "0.0.0.0:8787";
   environmentFiles = [
     /run/secrets/barnaby-env

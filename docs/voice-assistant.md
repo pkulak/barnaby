@@ -29,7 +29,7 @@ spoken request.
 Set a listen address and provide a bearer token through an environment file:
 
 ```nix
-services.barnaby = {
+services.barnaby.instances.barnaby = {
   environment.BARNABY_HTTP_LISTEN = "0.0.0.0:8787";
   environmentFiles = [
     /run/secrets/barnaby-env

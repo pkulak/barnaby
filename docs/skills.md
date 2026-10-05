@@ -14,7 +14,7 @@ The NixOS module provides a declarative `skills` option — an attrset mapping
 skill names to directories:
 
 ```nix
-services.barnaby.skills = {
+services.barnaby.instances.barnaby.skills = {
   kagi-search = "${mics-skills}/skills/kagi-search";
   my-custom-skill = ./skills/my-custom-skill;
 };
@@ -26,16 +26,12 @@ added from multiple NixOS module files.
 
 ## Environment variables
 
-When not using the NixOS module, configure skills via environment variables:
+When not using the NixOS module, point `BARNABY_PI_SKILLS_DIR` at a directory
+whose subdirectories are scanned for `SKILL.md` files:
 
 ```
-BARNABY_PI_SKILLS=/path/to/skill1,/path/to/skill2
 BARNABY_PI_SKILLS_DIR=/path/to/skills-directory
 ```
-
-`BARNABY_PI_SKILLS` is a comma-separated list of individual skill directories.
-`BARNABY_PI_SKILLS_DIR` points to a directory whose subdirectories are scanned
-for `SKILL.md` files. Both can be used together.
 
 ## Writing a skill
 

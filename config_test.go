@@ -207,33 +207,6 @@ func TestLoadConfig_BackgroundProviderOverrideKeepsChatModel(t *testing.T) {
 	}
 }
 
-func TestLoadConfig_LegacyMatrixBackendAccepted(t *testing.T) {
-	t.Parallel()
-
-	env := baseMatrixEnv()
-	env["BARNABY_BACKEND"] = "matrix"
-
-	if _, err := loadConfig(testEnv(env)); err != nil {
-		t.Fatalf("loadConfig: %v", err)
-	}
-}
-
-func TestLoadConfig_RejectsNonMatrixBackend(t *testing.T) {
-	t.Parallel()
-
-	env := baseMatrixEnv()
-	env["BARNABY_BACKEND"] = "telegram"
-
-	_, err := loadConfig(testEnv(env))
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-
-	if !strings.Contains(err.Error(), "only supports Matrix") {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
 func TestMatrixConfig_AllowedUsersParsing(t *testing.T) {
 	t.Parallel()
 
