@@ -34,6 +34,8 @@ Reminders and trigger-pipe events share one background Pi process, but every run
 
 Each falls back to its `BARNABY_PI_*` equivalent. Background tool calls and infrastructure errors are logged rather than sent to Matrix. Normal replies still go to Matrix; `NO_REPLY` remains silent.
 
+A cheap model tier can fail outright for a while. Set `BARNABY_BACKGROUND_FALLBACK_PI_MODEL` to finish those runs on another model. When a run fails with a provider error after Pi's own retries, Barnaby switches the same session to the fallback and sends "Continue." The fallback sees the whole transcript, including tool calls that already succeeded, so it picks up where the run stopped. Later runs stay on the fallback for `BARNABY_BACKGROUND_FALLBACK_COOLDOWN` (default `1h`), then return to the primary model. `BARNABY_BACKGROUND_FALLBACK_PI_PROVIDER` defaults to the background provider. The fallback model must be in Pi's model registry.
+
 Each run is written to its own session file under a temp directory (`BARNABY_BACKGROUND_PI_SESSION_DIR`, default `<tmpdir>/barnaby-background`). Because the context resets per run, a file contains just that run, which makes recent runs easy to inspect. The files are disposable and age out with normal `/tmp` cleanup (about ten days). In the NixOS container `/tmp` is a bind mount of the state directory's `tmp/`, so the files are visible on the host and the `session -b` helper opens the most recent run.
 
 Use `!background-stop` to abort the active background task. `!background-restart` kills the background process; the next task would start fresh anyway. Both leave chat and queued reminders alone.

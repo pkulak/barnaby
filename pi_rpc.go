@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -140,6 +141,48 @@ func (p *PiProcess) SwitchSession(ctx context.Context, sessionPath string) error
 	}
 
 	return p.waitForSessionResponse(ctx, "switch_session")
+}
+
+// SetModel switches the model for later prompts in the current session.
+func (p *PiProcess) SetModel(ctx context.Context, provider, model string) error {
+	if !p.IsAlive() {
+		return errors.New("pi process is not alive")
+	}
+
+	defer p.closeStdinOnCancel(ctx)()
+
+	if err := p.sendCommand(map[string]string{"type": "set_model", "provider": provider, "modelId": model}); err != nil {
+		return err
+	}
+
+	var failure string
+
+	err := p.drainEvents(ctx, func(evt rpcEvent) (bool, error) {
+		if evt.Type != rpcTypeResponse || evt.Command != "set_model" {
+			return false, nil
+		}
+
+		if evt.Success == nil || !*evt.Success {
+			failure = cmp.Or(evt.Error, "set_model failed")
+		}
+
+		return true, nil
+	})
+	if err != nil {
+		if ctx.Err() != nil {
+			return fmt.Errorf("context cancelled: %w", ctx.Err())
+		}
+
+		return err
+	}
+
+	if failure != "" {
+		return errors.New(failure)
+	}
+
+	p.model = provider + "/" + model
+
+	return nil
 }
 
 // AppendContext records text in the session with the room-context extension

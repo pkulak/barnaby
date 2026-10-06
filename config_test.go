@@ -5,12 +5,14 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 const (
-	testChatProvider = "chat-provider"
-	testChatModel    = "chat-model"
-	testSessionDir   = "/tmp/barnaby"
+	testChatProvider       = "chat-provider"
+	testChatModel          = "chat-model"
+	testSessionDir         = "/tmp/barnaby"
+	testBackgroundProvider = "background-provider"
 )
 
 func TestMatrixConfig_ValidateReportsAllMissing(t *testing.T) {
@@ -195,15 +197,43 @@ func TestLoadConfig_BackgroundProviderOverrideKeepsChatModel(t *testing.T) {
 	env := baseMatrixEnv()
 	env["BARNABY_PI_PROVIDER"] = testChatProvider
 	env["BARNABY_PI_MODEL"] = testChatModel
-	env["BARNABY_BACKGROUND_PI_PROVIDER"] = "background-provider"
+	env["BARNABY_BACKGROUND_PI_PROVIDER"] = testBackgroundProvider
 
 	cfg, err := loadConfig(testEnv(env))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if cfg.BackgroundPi.Provider != "background-provider" || cfg.BackgroundPi.Model != testChatModel {
+	if cfg.BackgroundPi.Provider != testBackgroundProvider || cfg.BackgroundPi.Model != testChatModel {
 		t.Errorf("background model config = %q/%q", cfg.BackgroundPi.Provider, cfg.BackgroundPi.Model)
+	}
+}
+
+func TestLoadConfig_BackgroundFallback(t *testing.T) {
+	t.Parallel()
+
+	env := baseMatrixEnv()
+	env["BARNABY_BACKGROUND_PI_PROVIDER"] = testBackgroundProvider
+	env["BARNABY_BACKGROUND_FALLBACK_PI_MODEL"] = testFallbackModel
+	env["BARNABY_BACKGROUND_FALLBACK_COOLDOWN"] = "15m"
+
+	cfg, err := loadConfig(testEnv(env))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bg := cfg.BackgroundPi
+	if bg.FallbackProvider != testBackgroundProvider || bg.FallbackModel != testFallbackModel || bg.FallbackCooldown != 15*time.Minute {
+		t.Errorf("fallback = %q/%q for %v", bg.FallbackProvider, bg.FallbackModel, bg.FallbackCooldown)
+	}
+
+	if cfg.Pi.FallbackModel != "" {
+		t.Errorf("chat fallback model = %q, want none", cfg.Pi.FallbackModel)
+	}
+
+	env["BARNABY_BACKGROUND_FALLBACK_COOLDOWN"] = "soon"
+	if _, err := loadConfig(testEnv(env)); err == nil {
+		t.Error("invalid fallback cooldown accepted")
 	}
 }
 

@@ -100,6 +100,17 @@ while IFS= read -r line; do
       current_session="$BARNABY_SESSION_DIR/session-$(wc -l < "$BARNABY_SESSION_DIR/new_session.log" | tr -d ' ').jsonl"
       printf '%s\n' '{"type":"response","command":"new_session","success":true,"data":{"cancelled":false}}'
       ;;
+    *'"type":"set_model"'*)
+      model=$(printf '%s' "$line" | sed 's/.*"modelId":"\([^"]*\)".*/\1/')
+      printf '%s\n' "$model" >> "$BARNABY_SESSION_DIR/set_model.log"
+      case "$model" in
+        missing-model)
+          printf '%s\n' '{"type":"response","command":"set_model","success":false,"error":"Model not found: missing-model"}'
+          continue
+          ;;
+      esac
+      printf '%s\n' '{"type":"response","command":"set_model","success":true,"data":{}}'
+      ;;
     *'"type":"switch_session"'*)
       current_session=$(printf '%s' "$line" | sed 's/.*"sessionPath":"\([^"]*\)".*/\1/')
       printf '%s\n' "$current_session" >> "$BARNABY_SESSION_DIR/switch_session.log"

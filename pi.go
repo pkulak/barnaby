@@ -36,6 +36,9 @@ type PiProcess struct {
 	done       chan struct{}
 	events     <-chan rpcParsed // single persistent reader feeds all waiters
 	onToolCall func()           // optional callback for tool_execution_start events
+	// model is the provider/model chosen by SetModel; empty means the
+	// model the process started with.
+	model string
 }
 
 // StartPi spawns a pi --mode rpc subprocess for the given room.

@@ -211,6 +211,24 @@ let
               description = "Optional model override for reminders and external triggers.";
             };
 
+            BARNABY_BACKGROUND_FALLBACK_PI_PROVIDER = lib.mkOption {
+              type = lib.types.str;
+              default = "";
+              description = "Provider for the background fallback model. Defaults to the background provider.";
+            };
+
+            BARNABY_BACKGROUND_FALLBACK_PI_MODEL = lib.mkOption {
+              type = lib.types.str;
+              default = "";
+              description = "Optional model that finishes background runs after a provider error.";
+            };
+
+            BARNABY_BACKGROUND_FALLBACK_COOLDOWN = lib.mkOption {
+              type = lib.types.str;
+              default = "1h";
+              description = "How long background runs stay on the fallback model after a failure.";
+            };
+
             BARNABY_PI_SESSION_DIR = lib.mkOption {
               type = lib.types.str;
               default = "${stateDir}/sessions";

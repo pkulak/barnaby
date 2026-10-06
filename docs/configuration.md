@@ -166,6 +166,12 @@ its own Pi process but shares the normal working directory, tools, and skills,
 and resets the session before every run so each trigger starts with empty
 context.
 
+`BARNABY_BACKGROUND_FALLBACK_PI_MODEL` names a model that finishes a background
+run after a provider error, and handles later runs for
+`BARNABY_BACKGROUND_FALLBACK_COOLDOWN` (default `1h`).
+`BARNABY_BACKGROUND_FALLBACK_PI_PROVIDER` defaults to the background provider.
+See [Reminders](reminders.md#background-session).
+
 Background session files live in `BARNABY_BACKGROUND_PI_SESSION_DIR`, which
 defaults to `<tmpdir>/barnaby-background`. They are disposable and age out with
 normal `/tmp` cleanup.

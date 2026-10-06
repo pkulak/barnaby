@@ -68,6 +68,12 @@ type PiConfig struct {
 	// have no ConversationID of their own (triggers). Takes
 	// precedence over the per-conversation SetRoomID mechanism.
 	DefaultRoomID string
+	// FallbackProvider and FallbackModel finish a background turn that
+	// failed with a provider error. The fallback stays selected for
+	// FallbackCooldown. An empty FallbackModel disables the fallback.
+	FallbackProvider string
+	FallbackModel    string
+	FallbackCooldown time.Duration
 }
 
 // LoadConfig reads configuration from os.Getenv.
@@ -101,6 +107,11 @@ func loadConfig(getenv func(string) string) (*Config, error) {
 		return nil, err
 	}
 
+	backgroundPi, err := loadBackgroundPiConfig(env, workingDir, idleTimeout, skills)
+	if err != nil {
+		return nil, err
+	}
+
 	cfg := &Config{
 		Matrix: MatrixConfig{
 			Homeserver:   env.str("BARNABY_MATRIX_HOMESERVER"),
@@ -112,7 +123,7 @@ func loadConfig(getenv func(string) string) (*Config, error) {
 			CryptoDBPath: env.or("BARNABY_MATRIX_CRYPTO_DB", filepath.Join(workingDir, "crypto.db")),
 		},
 		Pi:                 loadPiConfig(env, workingDir, idleTimeout, skills),
-		BackgroundPi:       loadBackgroundPiConfig(env, workingDir, idleTimeout, skills),
+		BackgroundPi:       backgroundPi,
 		VoicePi:            loadVoicePiConfig(env, workingDir, idleTimeout, skills),
 		MCPPi:              loadMCPPiConfig(env, workingDir, idleTimeout, skills),
 		HTTP:               httpCfg,
@@ -171,7 +182,7 @@ func loadPiConfig(env envReader, workingDir string, idleTimeout time.Duration, s
 	}
 }
 
-func loadBackgroundPiConfig(env envReader, workingDir string, idleTimeout time.Duration, skills []string) PiConfig {
+func loadBackgroundPiConfig(env envReader, workingDir string, idleTimeout time.Duration, skills []string) (PiConfig, error) {
 	cfg := loadPiConfig(env, workingDir, idleTimeout, skills)
 	// Each background turn runs in its own fresh session. Keep the transcripts
 	// in a temp dir so recent runs stay debuggable but age out on their own;
@@ -183,8 +194,17 @@ func loadBackgroundPiConfig(env envReader, workingDir string, idleTimeout time.D
 	cfg.CompactOnIdle = false
 	cfg.Provider = env.or("BARNABY_BACKGROUND_PI_PROVIDER", cfg.Provider)
 	cfg.Model = env.or("BARNABY_BACKGROUND_PI_MODEL", cfg.Model)
+	cfg.FallbackProvider = env.or("BARNABY_BACKGROUND_FALLBACK_PI_PROVIDER", cfg.Provider)
+	cfg.FallbackModel = env.str("BARNABY_BACKGROUND_FALLBACK_PI_MODEL")
 
-	return cfg
+	cooldown, err := env.duration("BARNABY_BACKGROUND_FALLBACK_COOLDOWN", time.Hour)
+	if err != nil {
+		return PiConfig{}, err
+	}
+
+	cfg.FallbackCooldown = cooldown
+
+	return cfg, nil
 }
 
 func loadVoicePiConfig(env envReader, workingDir string, idleTimeout time.Duration, skills []string) PiConfig {

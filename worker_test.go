@@ -504,6 +504,100 @@ func TestWorker_BackgroundProviderFailureIsSilent(t *testing.T) {
 	}
 }
 
+const testFallbackModel = "fallback-model"
+
+func newFallbackBackgroundWorker(t *testing.T, fallbackModel string) (*Worker, *mockMatrix) {
+	t.Helper()
+
+	w := newFakeBackgroundPiWorker(t)
+	w.piCfg.Provider = "primary-provider"
+	w.piCfg.Model = "primary-model"
+	w.piCfg.FallbackProvider = "fallback-provider"
+	w.piCfg.FallbackModel = fallbackModel
+	w.piCfg.FallbackCooldown = time.Hour
+
+	matrixClient := &mockMatrix{}
+	db := newTestDB(t.Context(), t)
+	w.SetApp(NewApp(matrixClient, w, newTestInboxWithDB(t.Context(), t, db), db))
+	w.SetMatrix(matrixClient)
+
+	return w, matrixClient
+}
+
+func setModelLog(t *testing.T, w *Worker) string {
+	t.Helper()
+
+	data, err := os.ReadFile(filepath.Join(w.piCfg.StateDir, "set_model.log"))
+	if err != nil && !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
+
+	return string(data)
+}
+
+func TestBackgroundWorker_ProviderFailureContinuesOnFallback(t *testing.T) {
+	t.Parallel()
+
+	w, matrixClient := newFallbackBackgroundWorker(t, testFallbackModel)
+
+	w.processItem(t.Context(), Inbox{Source: sourceTrigger, Content: "provider-error-test"})
+
+	if got := setModelLog(t, w); got != testFallbackModel+"\n" {
+		t.Errorf("set_model calls = %q, want the fallback once", got)
+	}
+
+	matrixClient.mu.Lock()
+	sent := matrixClient.sentMessages
+	matrixClient.mu.Unlock()
+
+	if len(sent) != 1 || sent[0].text != "ok" {
+		t.Errorf("sent messages = %+v, want the fallback reply", sent)
+	}
+
+	// The fallback stays selected during the cooldown.
+	w.processItem(t.Context(), Inbox{Source: sourceTrigger, Content: "ok"})
+
+	if got := setModelLog(t, w); got != testFallbackModel+"\n" {
+		t.Errorf("set_model calls during cooldown = %q, want no switch", got)
+	}
+
+	// After the cooldown, the next trigger returns to the primary model.
+	w.fallbackUntil = time.Now().Add(-time.Second)
+	w.processItem(t.Context(), Inbox{Source: sourceTrigger, Content: "ok"})
+
+	if got := setModelLog(t, w); got != testFallbackModel+"\nprimary-model\n" {
+		t.Errorf("set_model calls after cooldown = %q, want a switch back to the primary", got)
+	}
+}
+
+func TestBackgroundWorker_FallbackStartsOnRestartedProcess(t *testing.T) {
+	t.Parallel()
+
+	w, _ := newFallbackBackgroundWorker(t, testFallbackModel)
+	w.fallbackUntil = time.Now().Add(time.Hour)
+
+	w.processItem(t.Context(), Inbox{Source: sourceTrigger, Content: "ok"})
+
+	if got := setModelLog(t, w); got != testFallbackModel+"\n" {
+		t.Errorf("set_model calls = %q, want the fallback for a new process", got)
+	}
+}
+
+func TestBackgroundWorker_FailedFallbackSwitchIsSilent(t *testing.T) {
+	t.Parallel()
+
+	w, matrixClient := newFallbackBackgroundWorker(t, "missing-model")
+
+	w.processItem(t.Context(), Inbox{Source: sourceTrigger, Content: "provider-error-test"})
+
+	matrixClient.mu.Lock()
+	defer matrixClient.mu.Unlock()
+
+	if len(matrixClient.sentMessages) != 0 {
+		t.Errorf("failed fallback sent messages: %+v", matrixClient.sentMessages)
+	}
+}
+
 func TestWorker_BackgroundShutdownKeepsTriggerClaimed(t *testing.T) {
 	t.Parallel()
 

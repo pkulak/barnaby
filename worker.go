@@ -59,6 +59,10 @@ type Worker struct {
 	currentItemID string
 	compactResult chan compactOutcome
 
+	// fallbackUntil keeps triggers on the fallback model after the primary
+	// model fails. Only the worker goroutine uses it.
+	fallbackUntil time.Time
+
 	// wake is signalled (non-blocking) after new work is enqueued.
 	wake chan struct{}
 }
@@ -549,7 +553,7 @@ func (w *Worker) processPrompt(ctx context.Context, item Inbox) bool {
 
 	onToolCall := w.toolCallHandler(ctx, item, convID)
 
-	pi, reply, err := w.sendWithRetry(ctx, prompt, onToolCall)
+	pi, reply, err := w.sendTurn(ctx, item, prompt, onToolCall)
 	if err != nil {
 		killPi := pi != nil
 
@@ -580,6 +584,17 @@ func (w *Worker) processPrompt(ctx context.Context, item Inbox) bool {
 	w.app.sendReplyWithFiles(ctx, convID, reply, replyToID, !w.background, w.background)
 
 	return false
+}
+
+// sendTurn sends a user or trigger prompt. A failed trigger turn continues on
+// the fallback model.
+func (w *Worker) sendTurn(ctx context.Context, item Inbox, prompt string, onToolCall func()) (*PiProcess, string, error) {
+	pi, reply, err := w.sendWithRetry(ctx, prompt, onToolCall)
+	if err != nil && item.Source == sourceTrigger {
+		reply, err = w.continueOnFallback(ctx, pi, err, onToolCall)
+	}
+
+	return pi, reply, err
 }
 
 // processRoomContext records a room message in the chat session, retrying
@@ -631,6 +646,10 @@ func (w *Worker) resetTriggerSession(ctx context.Context) {
 		err = pi.NewSession(ctx)
 	}
 
+	if err == nil {
+		err = w.selectTriggerModel(ctx, pi)
+	}
+
 	if err != nil {
 		if ctx.Err() != nil {
 			return
@@ -639,6 +658,46 @@ func (w *Worker) resetTriggerSession(ctx context.Context) {
 		slog.Warn("worker: failed to reset trigger session, restarting pi", "error", err)
 		w.stopPi()
 	}
+}
+
+// selectTriggerModel uses the fallback model during its cooldown and the
+// primary model otherwise.
+func (w *Worker) selectTriggerModel(ctx context.Context, pi *PiProcess) error {
+	provider, model := w.piCfg.Provider, w.piCfg.Model
+	if w.piCfg.FallbackModel != "" && time.Now().Before(w.fallbackUntil) {
+		provider, model = w.piCfg.FallbackProvider, w.piCfg.FallbackModel
+	}
+
+	if cmp.Or(pi.model, w.piCfg.Provider+"/"+w.piCfg.Model) == provider+"/"+model {
+		return nil
+	}
+
+	slog.Info("worker: switching background model", "provider", provider, "model", model)
+
+	return pi.SetModel(ctx, provider, model)
+}
+
+// continueOnFallback finishes a trigger turn on the fallback model after the
+// primary model fails with a provider error. The session keeps the earlier
+// tool results, so the fallback picks up where the primary stopped. The
+// fallback stays selected for FallbackCooldown.
+func (w *Worker) continueOnFallback(ctx context.Context, pi *PiProcess, err error, onToolCall func()) (string, error) {
+	fallback := w.piCfg.FallbackProvider + "/" + w.piCfg.FallbackModel
+
+	var providerErr *providerError
+	if w.piCfg.FallbackModel == "" || pi == nil || pi.model == fallback || !errors.As(err, &providerErr) {
+		return "", err
+	}
+
+	w.fallbackUntil = time.Now().Add(w.piCfg.FallbackCooldown)
+	slog.Warn("worker: background model failed, continuing on fallback",
+		"fallback", fallback, "until", w.fallbackUntil.Format(time.RFC3339), "error", err)
+
+	if errSet := pi.SetModel(ctx, w.piCfg.FallbackProvider, w.piCfg.FallbackModel); errSet != nil {
+		return "", errors.Join(err, fmt.Errorf("switching to fallback model: %w", errSet))
+	}
+
+	return pi.sendAndWait(ctx, "Continue.", onToolCall)
 }
 
 func (w *Worker) processVoicePrompt(ctx context.Context, item Inbox) {
