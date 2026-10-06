@@ -12,6 +12,8 @@ Enable the bundled `reminders` Pi extension to give the agent structured tools:
 
 Reminder prompts must be self-contained. The background session does not receive chat history.
 
+A reminder replies in the room it was set in. When the scheduling message has a `<room-id>`, the tools prepend a routing line telling the background agent to start its response with `<send-to>` for that room. Prompts that already contain `<send-to>` are left alone, and reminders set from voice or background runs go to the default room.
+
 One-shot timestamps and optional recurring end times use ISO 8601 with an explicit timezone. Recurring reminders use a five-field cron expression and an explicit IANA timezone:
 
 ```text

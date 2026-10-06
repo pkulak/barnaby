@@ -16,7 +16,7 @@
  * is owned by the barnaby process.
  */
 
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 
 // Nix build substitutes the store path here. If the placeholder survives
@@ -111,6 +111,36 @@ function normalizeTimezone(timezone: string): string {
   }
 }
 
+// The Matrix room of the message being handled, so a reminder fires back
+// where it was set. Barnaby tags each chat prompt with <room-id>; voice and
+// background prompts have none, and their reminders go to the default room.
+function currentRoomId(ctx: ExtensionContext): string {
+  const branch = ctx.sessionManager.getBranch();
+  for (let i = branch.length - 1; i >= 0; i--) {
+    const entry = branch[i];
+    if (entry.type !== "message" || entry.message.role !== "user") continue;
+    const content = entry.message.content;
+    const text =
+      typeof content === "string"
+        ? content
+        : content.map((part) => (part.type === "text" ? part.text : "")).join("");
+    return text.match(/<room-id>([^<]+)<\/room-id>/)?.[1].trim() ?? "";
+  }
+  return "";
+}
+
+// Route the reminder back to the room it was set in, unless the prompt
+// already names a destination.
+function routePrompt(prompt: string, roomId: string): string {
+  if (!roomId || prompt.includes("<send-to>")) return prompt;
+  return `Your response must begin with this exact routing line:\n<send-to>${roomId}</send-to>\n\n${prompt}`;
+}
+
+const ROUTING =
+  "When it fires, the reply goes to the room this reminder was set in, or the " +
+  "default room for voice and background requests. To send it to a different " +
+  "room, tell the prompt to start its response with <send-to>ROOM_ID</send-to>.";
+
 export default function remindersExtension(pi: ExtensionAPI) {
   if (!DB_PATH) {
     // BARNABY_SESSION_DIR is exported by barnaby's StartPi; if it is
@@ -139,7 +169,8 @@ export default function remindersExtension(pi: ExtensionAPI) {
     description:
       "Schedule a one-shot reminder. The prompt is delivered to the separate " +
       "background agent at the given time (±1 min), then auto-deleted. Make " +
-      "the prompt self-contained: it cannot see this chat's history.",
+      "the prompt self-contained: it cannot see this chat's history. " +
+      ROUTING,
     parameters: Type.Object({
       when: Type.String({
         description:
@@ -150,11 +181,12 @@ export default function remindersExtension(pi: ExtensionAPI) {
         description: "Message to deliver when the reminder fires.",
       }),
     }),
-    async execute(_id, params, signal) {
+    async execute(_id, params, signal, _onUpdate, ctx) {
       const at = normalizeWhen(params.when);
       const delta = Date.parse(at) - Date.now();
+      const prompt = routePrompt(params.prompt, currentRoomId(ctx));
       const out = await sqlite(
-        `INSERT INTO reminders (fire_at, prompt) VALUES (${q(at)}, ${q(params.prompt)}); ` +
+        `INSERT INTO reminders (fire_at, prompt) VALUES (${q(at)}, ${q(prompt)}); ` +
           `SELECT last_insert_rowid();`,
         signal,
       );
@@ -178,7 +210,8 @@ export default function remindersExtension(pi: ExtensionAPI) {
       "prompt runs in a separate background session, so it must be self-contained. " +
       "Matching is checked once per minute in the supplied IANA timezone. " +
       "Missed or failed occurrences are not retried. Day-of-month and " +
-      "day-of-week use standard cron OR semantics when both are restricted.",
+      "day-of-week use standard cron OR semantics when both are restricted. " +
+      ROUTING,
     parameters: Type.Object({
       cron: Type.String({
         description:
@@ -199,13 +232,14 @@ export default function remindersExtension(pi: ExtensionAPI) {
         }),
       ),
     }),
-    async execute(_id, params, signal) {
+    async execute(_id, params, signal, _onUpdate, ctx) {
       const expression = normalizeCron(params.cron);
       const timezone = normalizeTimezone(params.timezone);
       const endAt = params.end_at ? normalizeWhen(params.end_at) : undefined;
+      const prompt = routePrompt(params.prompt, currentRoomId(ctx));
       const out = await sqlite(
         `INSERT INTO recurring_reminders (cron, timezone, end_at, prompt) VALUES (` +
-          `${q(expression)}, ${q(timezone)}, ${endAt ? q(endAt) : "NULL"}, ${q(params.prompt)}); ` +
+          `${q(expression)}, ${q(timezone)}, ${endAt ? q(endAt) : "NULL"}, ${q(prompt)}); ` +
           `SELECT last_insert_rowid();`,
         signal,
       );
