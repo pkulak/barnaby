@@ -116,7 +116,6 @@ type App struct {
 	mcpWorker           *Worker
 	inbox               *InboxStore
 	outbox              *outboxStore
-	roomContext         *roomContextStore
 	groupTriggerScript  string
 	groupTriggerTimeout time.Duration
 
@@ -132,7 +131,6 @@ func NewApp(matrixClient appMatrix, worker *Worker, inbox *InboxStore, db *sql.D
 		worker:              worker,
 		inbox:               inbox,
 		outbox:              newOutboxStore(db),
-		roomContext:         newRoomContextStore(db),
 		groupTriggerTimeout: defaultGroupTriggerTimeout,
 		groupHistory:        make(map[string][]groupHistoryEntry),
 	}
@@ -334,16 +332,16 @@ func (a *App) handlePrompt(ctx context.Context, msg matrix.Message) {
 			"text", msg.Text,
 		)
 
-		if err := a.roomContext.Append(ctx, roomContextEvent{
+		a.recordRoomMessage(ctx, roomMessage{
 			ConversationID: msg.ConversationID,
+			RoomName:       msg.RoomName,
 			MessageID:      msg.MessageID,
 			Speaker:        "participant",
 			SenderName:     msg.SenderName,
 			SenderID:       msg.SenderID,
 			Text:           msg.Text,
-		}); err != nil {
-			slog.Error("failed to record room context", "error", err)
-		}
+			At:             time.Now(),
+		})
 
 		return
 	}
@@ -360,17 +358,8 @@ func (a *App) handlePrompt(ctx context.Context, msg matrix.Message) {
 		quoted = a.outbox.Get(ctx, msg.ConversationID, msg.ReplyToID)
 	}
 
-	params := EnqueueInboxParams{
-		Priority:       PriorityUser,
-		Source:         sourceUser,
-		ReplyTo:        msg.ReplyToID,
-		ConversationID: msg.ConversationID,
-		MessageID:      msg.MessageID,
-		IsGroup:        !msg.IsDM,
-	}
-	if err := a.roomContext.EnqueueUser(ctx, params, msg.ReplyToID, func(recentBlock string) string {
-		return a.buildPromptText(msg, quoted, recentBlock)
-	}); err != nil {
+	content := a.buildPromptText(msg, quoted)
+	if err := a.inbox.EnqueueUser(ctx, content, msg.ReplyToID, msg.ConversationID, msg.MessageID, !msg.IsDM); err != nil {
 		slog.Error("failed to enqueue user message", "error", err)
 		a.matrix.SendMessage(ctx, msg.ConversationID, fmt.Sprintf("Error: %v", err), "")
 
@@ -380,8 +369,8 @@ func (a *App) handlePrompt(ctx context.Context, msg matrix.Message) {
 	a.worker.Notify()
 }
 
-// buildPromptText prepends room metadata, recent context, and reply-quote context.
-func (a *App) buildPromptText(msg matrix.Message, quoted, recentBlock string) string {
+// buildPromptText prepends room metadata and reply-quote context.
+func (a *App) buildPromptText(msg matrix.Message, quoted string) string {
 	promptText := msg.Text
 
 	if msg.ReplyToID != "" {
@@ -399,14 +388,6 @@ func (a *App) buildPromptText(msg matrix.Message, quoted, recentBlock string) st
 			tags = messageIDTag
 		} else {
 			tags += "\n" + messageIDTag
-		}
-	}
-
-	if recentBlock != "" {
-		if tags == "" {
-			tags = recentBlock
-		} else {
-			tags += "\n\n" + recentBlock
 		}
 	}
 
@@ -696,7 +677,7 @@ func (a *App) recordBackgroundReply(
 		parts = append(parts, "[You sent a file: "+fp+"]")
 	}
 
-	if err := a.roomContext.Append(ctx, roomContextEvent{
+	a.recordRoomMessage(ctx, roomMessage{
 		ConversationID: conversationID,
 		MessageID:      messageID,
 		Speaker:        "you",
@@ -704,9 +685,8 @@ func (a *App) recordBackgroundReply(
 		SenderName:     name,
 		SenderID:       userID,
 		Text:           strings.Join(parts, "\n"),
-	}); err != nil {
-		slog.Error("failed to record background room context", "error", err)
-	}
+		At:             time.Now(),
+	})
 }
 
 // systemPrompt returns the full system prompt including Matrix-specific context.

@@ -72,7 +72,12 @@ func StartPi(cfg PiConfig, roomID string, fresh bool) (*PiProcess, error) {
 		return nil, fmt.Errorf("creating trigger FIFO: %w", err)
 	}
 
-	args := buildPiArgs(cfg, fresh)
+	extension, err := writeRoomContextExtension(stateDir)
+	if err != nil {
+		return nil, err
+	}
+
+	args := buildPiArgs(cfg, fresh, extension)
 
 	// context.Background: see the doc comment on StartPi.
 	cmd := exec.CommandContext(context.Background(), cfg.BinaryPath, args...) //nolint:gosec // binary path is from trusted config
@@ -200,10 +205,10 @@ func startPiProcess(cmd *exec.Cmd, sessionDir string) (*PiProcess, error) {
 	}, nil
 }
 
-func buildPiArgs(cfg PiConfig, fresh bool) []string {
+func buildPiArgs(cfg PiConfig, fresh bool, extension string) []string {
 	args := append([]string(nil), cfg.BinaryArgs...)
 
-	args = append(args, "--mode", "rpc", "--session-dir", cfg.SessionDir)
+	args = append(args, "--mode", "rpc", "--session-dir", cfg.SessionDir, "--extension", extension)
 	if !fresh && !cfg.NoContinue {
 		args = append(args, "--continue")
 	}

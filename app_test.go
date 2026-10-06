@@ -506,7 +506,7 @@ func TestApp_BuildPromptText_ReplyToUserMessage(t *testing.T) {
 		ReplyToID:      "user-msg-123",
 	}
 
-	got := app.buildPromptText(replyMsg, "original question", "")
+	got := app.buildPromptText(replyMsg, "original question")
 
 	// Should contain the reply-quote context and original text.
 	if !strings.Contains(got, `[user replied to message: "original question"]`) {
@@ -667,7 +667,7 @@ func TestBuildPromptText_ContextTags(t *testing.T) {
 		IsDM:           false,
 	}
 
-	got := app.buildPromptText(msg, "", "")
+	got := app.buildPromptText(msg, "")
 
 	// Should contain context tags followed by a blank line then the text.
 	if !strings.Contains(got, "<from-id>@alice:matrix.org</from-id>") {
@@ -696,7 +696,7 @@ func TestBuildPromptText_IncludesMessageID(t *testing.T) {
 
 	app, _ := newTestApp(t)
 
-	got := app.buildPromptText(msg, "", "")
+	got := app.buildPromptText(msg, "")
 	if !strings.Contains(got, "<message-id>$event&lt;&amp;&gt;</message-id>") {
 		t.Errorf("prompt missing escaped message-id, got: %q", got)
 	}

@@ -29,7 +29,7 @@ VALUES (?, ?, ?, ?, ?, ?, ?);
 DELETE FROM inbox
 WHERE id = (
     SELECT id FROM inbox
-    WHERE source IN ('user', 'compact')
+    WHERE source IN ('user', 'room_context', 'compact')
     ORDER BY priority ASC, id ASC
     LIMIT 1
 )
@@ -61,6 +61,14 @@ WHERE id = (
 )
 RETURNING id, priority, source, content, reply_to, conversation_id,
           message_id, is_group, claimed_at, created_at;
+
+-- name: RestoreInbox :exec
+-- Puts a dequeued item back in its original place in the queue.
+INSERT INTO inbox (
+    id, priority, source, content, reply_to, conversation_id, message_id,
+    is_group, created_at
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: CompleteInbox :execrows
 DELETE FROM inbox WHERE id = ?;

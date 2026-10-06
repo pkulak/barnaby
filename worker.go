@@ -22,6 +22,7 @@ import (
 const (
 	noReplyToken       = "NO_REPLY"
 	sourceUser         = "user"
+	sourceRoomContext  = "room_context"
 	sourceTrigger      = "trigger"
 	sourceCompact      = "compact"
 	sourceVoice        = "voice"
@@ -46,10 +47,13 @@ type Worker struct {
 	mcpSessions   *mcpSessionStore // non-nil only for the MCP worker
 	triggerPrompt string
 
-	// mu protects pi, lastUse, compactResult, currentCancel, currentItemID, and freshStart.
-	mu            sync.Mutex
-	pi            *PiProcess
-	freshStart    bool // next ensurePi spawns without --continue
+	// mu protects pi, lastUse, compactResult, currentCancel, currentItemID, freshStart, and turned.
+	mu         sync.Mutex
+	pi         *PiProcess
+	freshStart bool // the next turn spawns without --continue
+	// turned is set once a turn uses the current process. A process started
+	// only to record room context is reaped without idle compaction.
+	turned        bool
 	lastUse       time.Time
 	currentCancel context.CancelFunc
 	currentItemID string
@@ -182,8 +186,8 @@ func (w *Worker) IsActive() bool {
 	return w.pi != nil && w.pi.IsAlive()
 }
 
-// Restart kills the current pi process and marks the next spawn to
-// skip --continue. Without the flag, the next ensurePi would resume
+// Restart kills the current pi process and marks the next turn to
+// start without --continue. Without the flag, the next turn would resume
 // the same on-disk session (pi persists sessions as jsonl files that
 // --continue picks up), so a user stuck at a 429 context-limit wall
 // would restart straight back into it.
@@ -307,7 +311,20 @@ func (w *Worker) reapIfIdle(ctx context.Context) {
 		return
 	}
 
-	reset := w.piCfg.CompactOnIdle && w.compactIdleSession(ctx)
+	w.mu.Lock()
+	turned := w.turned
+	w.mu.Unlock()
+
+	reset := false
+	if w.piCfg.CompactOnIdle && turned {
+		reset = w.compactIdleSession(ctx)
+
+		// Room messages can keep the process busy past the re-check below.
+		// Without a new turn, the next tick must not compact again.
+		w.mu.Lock()
+		w.turned = false
+		w.mu.Unlock()
+	}
 
 	if !w.isIdle() {
 		return
@@ -494,6 +511,8 @@ func (w *Worker) processItem(ctx context.Context, item Inbox) bool {
 		w.processVoicePrompt(itemCtx, item)
 	case sourceMCP:
 		w.processMCPRequest(itemCtx, item)
+	case sourceRoomContext:
+		w.processRoomContext(itemCtx, item)
 	default:
 		stopDraining = w.processPrompt(itemCtx, item)
 	}
@@ -561,6 +580,44 @@ func (w *Worker) processPrompt(ctx context.Context, item Inbox) bool {
 	w.app.sendReplyWithFiles(ctx, convID, reply, replyToID, !w.background, w.background)
 
 	return false
+}
+
+// processRoomContext records a room message in the chat session, retrying
+// once with a fresh process. It doesn't update lastUse, so the idle timer
+// still measures time since the last turn.
+func (w *Worker) processRoomContext(ctx context.Context, item Inbox) {
+	for range 2 {
+		pi, err := w.ensurePiFor(ctx, false)
+		if err == nil {
+			err = pi.AppendContext(ctx, item.Content)
+		}
+
+		if err == nil {
+			return
+		}
+
+		if ctx.Err() != nil {
+			// Keep the message for the next run instead of losing it.
+			if err := w.inbox.Restore(context.Background(), item); err != nil { //nolint:contextcheck // restore must outlive cancellation
+				slog.Error("worker: failed to restore room message (item lost)", "error", err)
+			}
+
+			return
+		}
+
+		if errors.Is(err, errRoomContextNotHandled) {
+			// Retrying would only start another model turn.
+			slog.Error("worker: dropped room message", "conversation", item.ConversationID, "error", err)
+			w.stopPi()
+
+			return
+		}
+
+		slog.Warn("worker: recording room message failed", "error", err)
+		w.stopPi()
+	}
+
+	slog.Error("worker: dropped room message", "conversation", item.ConversationID)
 }
 
 // resetTriggerSession discards any context left over from a previous
@@ -919,19 +976,29 @@ func (w *Worker) sendWithRetry(
 	return pi, reply, err
 }
 
+// ensurePi returns a running Pi process for a turn.
 func (w *Worker) ensurePi(ctx context.Context) (*PiProcess, error) {
+	return w.ensurePiFor(ctx, true)
+}
+
+// ensurePiFor returns a running Pi process. A pending fresh start waits for a
+// turn: Pi doesn't write a session file until it has a user or assistant
+// message, so room context recorded in a fresh session could be lost. Context
+// goes to the previous session instead, and the next turn replaces that
+// process with a fresh one.
+func (w *Worker) ensurePiFor(ctx context.Context, turn bool) (*PiProcess, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	if w.pi != nil && w.pi.IsAlive() {
-		return w.pi, nil
+	if pi := w.livePi(turn); pi != nil {
+		return pi, nil
 	}
 
 	if ctx.Err() != nil {
 		return nil, fmt.Errorf("ensurePi cancelled: %w", ctx.Err())
 	}
 
-	fresh := w.freshStart
+	fresh := w.freshStart && turn
 	roomID := w.resolveRoomID()
 
 	pi, err := w.startPi(w.piCfg, roomID, fresh)
@@ -946,9 +1013,33 @@ func (w *Worker) ensurePi(ctx context.Context) (*PiProcess, error) {
 	}
 
 	w.pi = pi
-	w.freshStart = false
+	w.turned = turn
+
+	if turn {
+		w.freshStart = false
+	}
 
 	return pi, nil
+}
+
+// livePi returns the running process, unless a turn needs a fresh start and
+// the process is still on the previous session; that one is stopped. The
+// caller holds mu.
+func (w *Worker) livePi(turn bool) *PiProcess {
+	if w.pi == nil || !w.pi.IsAlive() {
+		return nil
+	}
+
+	if turn && w.freshStart {
+		w.pi.Kill()
+		w.pi = nil
+
+		return nil
+	}
+
+	w.turned = w.turned || turn
+
+	return w.pi
 }
 
 func (w *Worker) stopPi() {

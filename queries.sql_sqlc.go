@@ -163,7 +163,7 @@ const dequeueChatInbox = `-- name: DequeueChatInbox :one
 DELETE FROM inbox
 WHERE id = (
     SELECT id FROM inbox
-    WHERE source IN ('user', 'compact')
+    WHERE source IN ('user', 'room_context', 'compact')
     ORDER BY priority ASC, id ASC
     LIMIT 1
 )
@@ -389,6 +389,42 @@ func (q *Queries) ResetClaimedTriggers(ctx context.Context) (int64, error) {
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const restoreInbox = `-- name: RestoreInbox :exec
+INSERT INTO inbox (
+    id, priority, source, content, reply_to, conversation_id, message_id,
+    is_group, created_at
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+`
+
+type RestoreInboxParams struct {
+	ID             int64
+	Priority       int64
+	Source         string
+	Content        string
+	ReplyTo        string
+	ConversationID string
+	MessageID      string
+	IsGroup        bool
+	CreatedAt      string
+}
+
+// Puts a dequeued item back in its original place in the queue.
+func (q *Queries) RestoreInbox(ctx context.Context, arg RestoreInboxParams) error {
+	_, err := q.db.ExecContext(ctx, restoreInbox,
+		arg.ID,
+		arg.Priority,
+		arg.Source,
+		arg.Content,
+		arg.ReplyTo,
+		arg.ConversationID,
+		arg.MessageID,
+		arg.IsGroup,
+		arg.CreatedAt,
+	)
+	return err
 }
 
 const upsertOutbox = `-- name: UpsertOutbox :exec

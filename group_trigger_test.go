@@ -47,7 +47,7 @@ func inboxCount(t *testing.T, app *App) int64 {
 	return count
 }
 
-func TestApp_GroupTrigger_SkipBuffersAndDrops(t *testing.T) {
+func TestApp_GroupTrigger_SkipRecordsRoomContext(t *testing.T) {
 	t.Parallel()
 
 	app, _ := newTestApp(t)
@@ -56,21 +56,23 @@ func TestApp_GroupTrigger_SkipBuffersAndDrops(t *testing.T) {
 	ctx := t.Context()
 	app.HandleMessage(ctx, groupMessage("Gwen", "Did you know dogs can't look up?"))
 
-	if count := inboxCount(t, app); count != 0 {
-		t.Errorf("inbox count = %d, want 0", count)
-	}
-
-	events, err := loadRoomContextEvents(ctx, app.roomContext.db, familyRoom)
+	item, err := app.inbox.DequeueChat(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if len(events) != 1 || events[0].SenderName != "Gwen" || events[0].Text != "Did you know dogs can't look up?" {
-		t.Errorf("room context = %+v, want Gwen's message", events)
+	if item.Source != sourceRoomContext ||
+		!strings.Contains(item.Content, `sender-name="Gwen"`) ||
+		!strings.Contains(item.Content, "Did you know dogs can&#39;t look up?") {
+		t.Errorf("item = %+v, want Gwen's message as room context", item)
+	}
+
+	if count := inboxCount(t, app); count != 0 {
+		t.Errorf("inbox count = %d, want 0", count)
 	}
 }
 
-func TestApp_GroupTrigger_RespondPrependsBufferAndClearsIt(t *testing.T) {
+func TestApp_GroupTrigger_RespondQueuesPromptAfterContext(t *testing.T) {
 	t.Parallel()
 
 	app, _ := newTestApp(t)
@@ -80,32 +82,19 @@ func TestApp_GroupTrigger_RespondPrependsBufferAndClearsIt(t *testing.T) {
 	app.HandleMessage(ctx, groupMessage("Gwen", "Dogs can't look up."))
 	app.HandleMessage(ctx, groupMessage("Phil", "Barn, is that true?"))
 
-	if count := inboxCount(t, app); count != 1 {
-		t.Fatalf("inbox count = %d, want 1", count)
-	}
+	sources := make([]string, 0, 2)
 
-	item, err := app.inbox.DequeueChat(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	for _, want := range []string{
-		`speaker="participant" sender-name="Gwen" sender-id="@gwen:kulak.us"`,
-		"Dogs can&#39;t look up.",
-		"Barn, is that true?",
-	} {
-		if !strings.Contains(item.Content, want) {
-			t.Errorf("item.Content missing %q, got: %q", want, item.Content)
+	for range 2 {
+		item, err := app.inbox.DequeueChat(ctx)
+		if err != nil {
+			t.Fatal(err)
 		}
+
+		sources = append(sources, item.Source)
 	}
 
-	events, err := loadRoomContextEvents(ctx, app.roomContext.db, familyRoom)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if len(events) != 0 {
-		t.Errorf("room context length = %d, want 0 after flush", len(events))
+	if want := []string{sourceRoomContext, sourceUser}; !reflect.DeepEqual(sources, want) {
+		t.Errorf("sources = %v, want %v", sources, want)
 	}
 }
 

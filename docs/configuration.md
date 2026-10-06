@@ -103,15 +103,20 @@ chat session across rooms and DMs, while triggers and reminders use a separate
 background session. `!restart`, `!stop`, and `!compact` affect chat; use
 `!background-restart` and `!background-stop` for the background session.
 
-The sessions are separate, but the chat worker still sees relevant room activity.
-Barnaby saves unaddressed group messages and background-worker replies per room,
-then prepends them when chat is next activated. Downloaded attachments include
-their local path, so you can post a photo and ask about it in a later mention.
-Direct replies are quoted once rather than duplicated in the recent-room block.
+The sessions are separate, but the chat session still sees all room activity.
+Unaddressed group messages and background-worker replies are recorded in the
+chat session as they arrive, through a built-in Pi extension command that
+doesn't call the model. The agent reads them on its next turn. Downloaded
+attachments include their local path, so you can post a photo and ask about it
+in a later mention.
 
-Pending room context survives restarts and is bounded to the newest 500 messages
-and 64 KiB. The prompt says when older messages were omitted. This is a hard
-cutoff, not an AI-generated summary.
+Recording a message starts the chat Pi process if it isn't running, but
+doesn't reset the idle timeout, which counts from the last turn. A process
+started only to record messages is stopped without idle compaction. After
+`!restart` or an idle reset, messages keep going to the old session until the
+next turn starts the fresh one, because Pi doesn't save a session to disk
+before its first turn. The old session file keeps them, but the fresh
+session doesn't see them.
 
 Only allowed senders contribute room context. If `BARNABY_ALLOWED_USERS` is
 unset, everyone is allowed; set it when other room members should not be able to
@@ -142,7 +147,7 @@ measured from the current message, in whole units (`45s`, `2m`, `3h`, `2d`).
 The history lives in memory, so it starts empty after a restart.
 
 Exit `0` to send the message to the agent and `1` to skip it. Skipped messages
-still end up in the room context above. Anything the script prints is logged
+are still recorded in the chat session, as above. Anything the script prints is logged
 with the decision, which makes a probability or reason handy to print.
 See [`examples/group_trigger.py`](../examples/group_trigger.py) for a script
 that asks Jev.

@@ -146,6 +146,25 @@ func (s *InboxStore) DeleteMCP(ctx context.Context, callID string) error {
 	return nil
 }
 
+// Restore puts a dequeued item back where it was in the queue.
+func (s *InboxStore) Restore(ctx context.Context, item Inbox) error {
+	if err := s.queries.RestoreInbox(ctx, RestoreInboxParams{
+		ID:             item.ID,
+		Priority:       item.Priority,
+		Source:         item.Source,
+		Content:        item.Content,
+		ReplyTo:        item.ReplyTo,
+		ConversationID: item.ConversationID,
+		MessageID:      item.MessageID,
+		IsGroup:        item.IsGroup,
+		CreatedAt:      item.CreatedAt,
+	}); err != nil {
+		return fmt.Errorf("restoring %s item: %w", item.Source, err)
+	}
+
+	return nil
+}
+
 // Requeue re-inserts an interrupted item.
 func (s *InboxStore) Requeue(ctx context.Context, item Inbox) error {
 	if err := s.queries.EnqueueInbox(ctx, EnqueueInboxParams{

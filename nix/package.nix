@@ -16,6 +16,7 @@ buildGoModule (finalAttrs: {
       ./../.golangci.yml
       ./../testdata
       ./../SOUL.md
+      ./../extensions/room-context.ts
     ];
   };
   vendorHash = "sha256-JZNOOJH1bkABgzLKq7c19b9cdQ4nBXUMRiHn/tNbluE=";

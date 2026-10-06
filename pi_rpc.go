@@ -142,6 +142,57 @@ func (p *PiProcess) SwitchSession(ctx context.Context, sessionPath string) error
 	return p.waitForSessionResponse(ctx, "switch_session")
 }
 
+// AppendContext records text in the session with the room-context extension
+// command. Pi handles extension commands without calling the model.
+func (p *PiProcess) AppendContext(ctx context.Context, text string) error {
+	if !p.IsAlive() {
+		return errors.New("pi process is not alive")
+	}
+
+	defer p.closeStdinOnCancel(ctx)()
+
+	if err := p.sendPromptCommand(roomContextCommand + text); err != nil {
+		return err
+	}
+
+	var disposition string
+
+	err := p.drainEvents(ctx, func(evt rpcEvent) (bool, error) {
+		if evt.Type != rpcTypeResponse || evt.Command != "prompt" {
+			return false, nil
+		}
+
+		var data struct {
+			Disposition string `json:"disposition"`
+		}
+		if len(evt.Data) > 0 {
+			_ = json.Unmarshal(evt.Data, &data)
+		}
+
+		disposition = data.Disposition
+
+		return true, nil
+	})
+	if err != nil {
+		if ctx.Err() != nil {
+			return fmt.Errorf("context cancelled: %w", ctx.Err())
+		}
+
+		return err
+	}
+
+	if disposition != "handled" {
+		return fmt.Errorf("%w (disposition %q)", errRoomContextNotHandled, disposition)
+	}
+
+	return nil
+}
+
+// errRoomContextNotHandled means Pi didn't run the room-context extension
+// command. Without the extension, Pi sends the text to the model as a prompt,
+// so the caller should stop the process rather than wait for that turn.
+var errRoomContextNotHandled = errors.New("room-context command was not handled")
+
 // SessionStats is the subset of get_session_stats the idle reaper uses.
 type SessionStats struct {
 	// Tokens is pi's current context-window estimate, or 0 when no model or

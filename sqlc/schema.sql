@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS recurring_reminders (
 CREATE TABLE IF NOT EXISTS inbox (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     priority        INTEGER NOT NULL DEFAULT 2,  -- legacy ordering metadata
-    source          TEXT    NOT NULL,             -- "user", "trigger", "compact", "voice", "voice_compact", or "mcp"
+    source          TEXT    NOT NULL,             -- "user", "room_context", "trigger", "compact", "voice", "voice_compact", or "mcp"
     content         TEXT    NOT NULL DEFAULT '',
     reply_to        TEXT    NOT NULL DEFAULT '',  -- Matrix event ID to reply to
     conversation_id TEXT    NOT NULL DEFAULT '',  -- Matrix room ID for routing replies
@@ -32,24 +32,4 @@ CREATE TABLE IF NOT EXISTS inbox (
     is_group        BOOLEAN NOT NULL DEFAULT FALSE,
     claimed_at      TEXT    NOT NULL DEFAULT '',  -- set while a background worker is handling a trigger
     created_at      TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-);
-
-CREATE TABLE IF NOT EXISTS room_context (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    conversation_id TEXT NOT NULL,
-    message_id      TEXT NOT NULL DEFAULT '',
-    speaker         TEXT NOT NULL,
-    worker          TEXT NOT NULL DEFAULT '',
-    sender_name     TEXT NOT NULL DEFAULT '',
-    sender_id       TEXT NOT NULL DEFAULT '',
-    text            TEXT NOT NULL,
-    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-);
-
-CREATE INDEX IF NOT EXISTS room_context_conversation_id
-    ON room_context (conversation_id, id);
-
-CREATE TABLE IF NOT EXISTS room_context_omissions (
-    conversation_id TEXT PRIMARY KEY,
-    dropped_count   INTEGER NOT NULL DEFAULT 0
 );

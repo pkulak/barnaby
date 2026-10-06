@@ -13,6 +13,20 @@ esac
 while IFS= read -r line; do
   case "$line" in
     *'"type":"prompt"'*|*'"type": "prompt"'*)
+      # The room-context extension command records without a turn.
+      case "$line" in
+        *'"message":"/room-context unhandled'*)
+          # Without the extension, Pi starts a turn instead.
+          printf '%s\n' '{"type":"response","command":"prompt","success":true,"data":{"disposition":"started"}}'
+          printf '%s\n' '{"type":"agent_start"}'
+          continue
+          ;;
+        *'"message":"/room-context '*)
+          printf '%s\n' "$line" >> "$BARNABY_SESSION_DIR/room_context.log"
+          printf '%s\n' '{"type":"response","command":"prompt","success":true,"data":{"disposition":"handled"}}'
+          continue
+          ;;
+      esac
       # When the prompt asks for it, fork a long-lived grandchild and
       # record its PID so the test can verify stopPi reaps the whole
       # process tree, not just the fake-pi leader. Mirrors real pi

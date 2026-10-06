@@ -181,7 +181,7 @@ func spawnOptionalWorker(ctx context.Context, worker *Worker) <-chan struct{} {
 // upgrade deadlocks when two writers overlap under WAL.
 const sqliteDSNParams = "?_txlock=immediate&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)"
 
-// openDB opens the shared database for inbox, outbox, and room context tables.
+// openDB opens the shared database for the inbox, outbox, and reminders.
 func openDB(ctx context.Context, sessionDir string) (*sql.DB, error) {
 	dbPath := filepath.Join(sessionDir, barnabyDBFile)
 
@@ -194,6 +194,12 @@ func openDB(ctx context.Context, sessionDir string) (*sql.DB, error) {
 		db.Close()
 
 		return nil, fmt.Errorf("migrating schema: %w", err)
+	}
+
+	if err := migrateRoomContext(ctx, db); err != nil {
+		db.Close()
+
+		return nil, err
 	}
 
 	return db, nil

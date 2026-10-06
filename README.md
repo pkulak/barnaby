@@ -1,8 +1,8 @@
 # Barnaby
 
 Barnaby is a Matrix bot that puts an AI agent in your group chats. It's built
-for rooms where most messages aren't meant for the bot: it reads along, keeps
-track of what it skipped, and answers when someone addresses it.
+for rooms where most messages aren't meant for the bot: it reads along, records
+what it skipped in its session, and answers when someone addresses it.
 
 The agent is [pi](https://github.com/badlogic/pi-mono), a coding agent with
 built-in tools, session persistence, auto-compaction, and multi-provider LLM
@@ -15,8 +15,8 @@ subprocess over its RPC protocol and handles the chat side.
   and post to any of them.
 - An optional script decides which group messages go to the agent (see
   [Group message routing](docs/configuration.md#group-message-routing)).
-  Skipped messages are saved and handed to the agent the next time it's
-  addressed.
+  Skipped messages are recorded in the chat session without calling the
+  model, so the agent has them the next time it's addressed.
 - The agent can react instead of replying, or answer `NO_REPLY` to stay quiet.
 - One-shot reminders, recurring cron reminders, and external trigger pipes run
   in their own Pi session, separate from chat.
