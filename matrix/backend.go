@@ -59,7 +59,8 @@ instead of reproducing it.
 ## Reacting to messages
 
 Incoming user messages include a <message-id> context tag. To react to a message
-in the current room, include one standalone tag in your final response:
+in the current room, include one standalone tag in your final response. There is
+no react tool; the tag in your response text is the only way to react:
 
 <react id="$event-id">👍</react>
 
