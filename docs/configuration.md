@@ -109,7 +109,7 @@ then prepends them when chat is next activated. Downloaded attachments include
 their local path, so you can post a photo and ask about it in a later mention.
 Direct replies are quoted once rather than duplicated in the recent-room block.
 
-Pending room context survives restarts and is bounded to the newest 64 messages
+Pending room context survives restarts and is bounded to the newest 500 messages
 and 64 KiB. The prompt says when older messages were omitted. This is a hard
 cutoff, not an AI-generated summary.
 

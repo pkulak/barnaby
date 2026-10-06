@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	maxRoomContextEvents = 64
+	maxRoomContextEvents = 500
 	maxRoomContextBytes  = 64 << 10
 )
 
