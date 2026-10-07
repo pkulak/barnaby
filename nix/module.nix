@@ -45,8 +45,8 @@ let
           All skills are assembled into a single directory and passed via
           BARNABY_PI_SKILLS_DIR.
 
-          Bundled skills: `image` (generate and edit images) and `transcribe`
-          (audio to text). Both use OPENROUTER_API_KEY.
+          Bundled skills: `image`, `transcribe`, `sports-scores`, and
+          `sports-monitor`. See docs/skills.md for what each one needs.
         '';
         example = lib.literalExpression ''
           {
@@ -345,6 +345,7 @@ let
           pkgs.curl
           pkgs.jq
         ];
+        sports-scores = [ pkgs.python3 ];
       };
 
       skillPackages = lib.concatLists (
@@ -373,7 +374,11 @@ let
       ++ lib.mapAttrsToList (sname: _: {
         assertion = builtins.pathExists (../skills + "/${sname}");
         message = "services.barnaby (${name}): barnaby has no bundled skill named ${sname}.";
-      }) (lib.filterAttrs (_: v: v == true) icfg.skills);
+      }) (lib.filterAttrs (_: v: v == true) icfg.skills)
+      ++ lib.optional ((icfg.skills.sports-monitor or false) == true) {
+        assertion = enabledSkills ? sports-scores && (icfg.extensions.reminders or false) != false;
+        message = "services.barnaby (${name}): the sports-monitor skill needs the sports-scores skill and the reminders extension.";
+      };
 
       systemPackages = [ barnabyPi ];
 

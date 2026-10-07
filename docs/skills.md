@@ -10,12 +10,18 @@ agent to see.
 
 ## Bundled skills
 
-Barnaby ships a few skills in `skills/`. Each one needs `OPENROUTER_API_KEY`:
+Barnaby ships a few skills in `skills/`:
 
-| Skill | What it does |
-|---|---|
-| `image` | Generates or edits images (`openai/gpt-image-2.5-sunburst`) |
-| `transcribe` | Transcribes voice messages and other audio (`openai/gpt-4o-transcribe`) |
+| Skill | What it does | Needs |
+|---|---|---|
+| `image` | Generates or edits images (`openai/gpt-image-2.5-sunburst`) | `OPENROUTER_API_KEY` |
+| `transcribe` | Transcribes voice messages and other audio (`openai/gpt-4o-transcribe`) | `OPENROUTER_API_KEY` |
+| `sports-scores` | Scores, schedules, standings, and rankings from ESPN, in the local timezone (`TZ`) | `OPENROUTER_API_KEY` for team search only |
+| `sports-monitor` | Watches a live game and sends one alert | The `sports-scores` skill and the `reminders` extension |
+
+`sports-scores` matches team names with Jev, so it has no list of favorite teams. If
+"Ducks" should mean Oregon rather than Anaheim, say which teams the family follows in
+the soul.
 
 ## NixOS module
 
