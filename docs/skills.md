@@ -5,8 +5,17 @@ providing instructions and examples for specific tasks. Each skill is a director
 containing a `SKILL.md` file with a YAML frontmatter (`name`, `description`) and
 the skill's instructions.
 
-Barnaby does not enable any skills by default. Add only the skill directories
-you want the agent to see.
+Barnaby does not enable any skills by default. Add only the skills you want the
+agent to see.
+
+## Bundled skills
+
+Barnaby ships a few skills in `skills/`. Each one needs `OPENROUTER_API_KEY`:
+
+| Skill | What it does |
+|---|---|
+| `image` | Generates or edits images (`openai/gpt-image-2.5-sunburst`) |
+| `transcribe` | Transcribes voice messages and other audio (`openai/gpt-4o-transcribe`) |
 
 ## NixOS module
 
@@ -15,14 +24,16 @@ skill names to directories:
 
 ```nix
 services.barnaby.instances.barnaby.skills = {
+  image = true;
   kagi-search = "${mics-skills}/skills/kagi-search";
   my-custom-skill = ./skills/my-custom-skill;
 };
 ```
 
-All entries are assembled into a single directory via `linkFarm` and passed to
-pi through `BARNABY_PI_SKILLS_DIR`. The attrset is mergeable, so skills can be
-added from multiple NixOS module files.
+`true` enables a bundled skill and adds the packages it runs (Python, curl, and
+so on) to the end of the service's `PATH`. All entries are assembled into a
+single directory via `linkFarm` and passed to pi through `BARNABY_PI_SKILLS_DIR`.
+The attrset is mergeable, so skills can be added from multiple NixOS module files.
 
 ## Environment variables
 

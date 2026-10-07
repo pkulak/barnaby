@@ -33,16 +33,24 @@ let
       };
 
       skills = lib.mkOption {
-        type = lib.types.attrsOf lib.types.path;
+        type = lib.types.attrsOf (lib.types.either lib.types.bool lib.types.path);
         default = { };
         description = ''
-          Skill directories to make available to pi, keyed by name. Each
-          value must be a path to a directory containing a SKILL.md file.
+          Skills to make available to pi, keyed by name. Each value can be:
+          - `true` to enable a skill shipped with barnaby (from its
+            `skills` directory), along with the packages it needs
+          - `false` to explicitly disable a skill
+          - A path to a directory containing a SKILL.md file
+
           All skills are assembled into a single directory and passed via
           BARNABY_PI_SKILLS_DIR.
+
+          Bundled skills: `image` (generate and edit images) and `transcribe`
+          (audio to text). Both use OPENROUTER_API_KEY.
         '';
         example = lib.literalExpression ''
           {
+            image = true;
             my-custom-skill = ./my-custom-skill;
             kagi-search = "''${pkgs.fetchFromGitHub { owner = "someone"; repo = "pi-skills"; rev = "main"; hash = "..."; }}/kagi-search";
           }
@@ -320,11 +328,29 @@ let
 
       piModelsJson = jsonFormat.generate "pi-models-${name}.json" icfg.piModels;
 
+      enabledSkills = lib.filterAttrs (_: v: v != false) icfg.skills;
+
       skillsDir = pkgs.linkFarm "barnaby-skills-${name}" (
-        lib.mapAttrsToList (sname: path: {
+        lib.mapAttrsToList (sname: value: {
           name = sname;
-          inherit path;
-        }) icfg.skills
+          path = if value == true then ../skills + "/${sname}" else value;
+        }) enabledSkills
+      );
+
+      # Packages the bundled skills run. They go last on the service's PATH,
+      # so anything in extraPackages (a Python with more modules, say) wins.
+      bundledSkillPackages = {
+        image = [ (pkgs.python3.withPackages (ps: [ ps.requests ])) ];
+        transcribe = [
+          pkgs.curl
+          pkgs.jq
+        ];
+      };
+
+      skillPackages = lib.concatLists (
+        lib.mapAttrsToList (sname: _: bundledSkillPackages.${sname} or [ ]) (
+          lib.filterAttrs (_: v: v == true) icfg.skills
+        )
       );
 
       # Host-side wrapper to interact with pi inside the container as the barnaby user.
@@ -343,7 +369,11 @@ let
           assertion = icfg.environment.BARNABY_MATRIX_HOMESERVER != "";
           message = "services.barnaby (${name}): BARNABY_MATRIX_HOMESERVER is required.";
         }
-      ];
+      ]
+      ++ lib.mapAttrsToList (sname: _: {
+        assertion = builtins.pathExists (../skills + "/${sname}");
+        message = "services.barnaby (${name}): barnaby has no bundled skill named ${sname}.";
+      }) (lib.filterAttrs (_: v: v == true) icfg.skills);
 
       systemPackages = [ barnabyPi ];
 
@@ -429,7 +459,8 @@ let
                 pkgs.coreutils
                 pkgs.ffmpeg
               ]
-              ++ icfg.extraPackages;
+              ++ icfg.extraPackages
+              ++ skillPackages;
 
               environment = {
                 HOME = stateDir;
