@@ -35,6 +35,7 @@ type appMatrix interface {
 	SendReaction(ctx context.Context, conversationID, messageID, emoji string) error
 	ResetConversation(ctx context.Context, conversationID string)
 	OwnIdentity(ctx context.Context, conversationID string) (name, userID string)
+	JoinedRoomIDs(ctx context.Context) []string
 	SystemPromptExtra() string
 }
 
@@ -358,7 +359,12 @@ func (a *App) handlePrompt(ctx context.Context, msg matrix.Message) {
 		quoted = a.outbox.Get(ctx, msg.ConversationID, msg.ReplyToID)
 	}
 
-	content := a.buildPromptText(msg, quoted)
+	// The agent sees short IDs; resolveRoomID and outbox.Resolve map them back.
+	shown := msg
+	shown.ConversationID = a.shortRoomID(ctx, msg.ConversationID)
+	shown.MessageID = a.outbox.ShortID(ctx, msg.ConversationID, msg.MessageID)
+
+	content := a.buildPromptText(shown, quoted)
 	if err := a.inbox.EnqueueUser(ctx, content, msg.ReplyToID, msg.ConversationID, msg.MessageID, !msg.IsDM); err != nil {
 		slog.Error("failed to enqueue user message", "error", err)
 		a.matrix.SendMessage(ctx, msg.ConversationID, fmt.Sprintf("Error: %v", err), "")
@@ -504,7 +510,9 @@ func escape(s string) string {
 // sendReaction validates that the requested message is known in the current
 // conversation before sending it to Matrix.
 func (a *App) sendReaction(ctx context.Context, conversationID string, reaction reactionRequest) {
-	target := a.outbox.Get(ctx, conversationID, reaction.messageID)
+	messageID := a.outbox.Resolve(ctx, conversationID, reaction.messageID)
+
+	target := a.outbox.Get(ctx, conversationID, messageID)
 	if target == "" {
 		slog.Warn("ignoring reaction to unknown message",
 			"conversation", conversationID,
@@ -514,7 +522,7 @@ func (a *App) sendReaction(ctx context.Context, conversationID string, reaction 
 		return
 	}
 
-	if err := a.matrix.SendReaction(ctx, conversationID, reaction.messageID, reaction.emoji); err != nil {
+	if err := a.matrix.SendReaction(ctx, conversationID, messageID, reaction.emoji); err != nil {
 		slog.Warn("failed to send reaction",
 			"conversation", conversationID,
 			"message", reaction.messageID,
@@ -532,7 +540,7 @@ func (a *App) deliverVoiceReply(ctx context.Context, defaultRoomID, reply string
 	cleanReply, filePaths := extractSendFiles(cleanReply)
 
 	if targetRoom != "" {
-		return a.deliverVoiceToMatrix(ctx, targetRoom, cleanReply, filePaths)
+		return a.deliverVoiceToMatrix(ctx, a.resolveRoomID(ctx, targetRoom), cleanReply, filePaths)
 	}
 
 	return a.deliverVoiceFiles(ctx, defaultRoomID, cleanReply, filePaths)
@@ -687,6 +695,21 @@ func (a *App) recordBackgroundReply(
 		Text:           strings.Join(parts, "\n"),
 		At:             time.Now(),
 	})
+}
+
+// shortRoomID abbreviates a room ID for the agent; see shortID.
+func (a *App) shortRoomID(ctx context.Context, roomID string) string {
+	return shortID(roomID, a.matrix.JoinedRoomIDs(ctx))
+}
+
+// resolveRoomID expands a short room ID from the agent. Anything that isn't
+// a prefix of exactly one joined room is returned unchanged.
+func (a *App) resolveRoomID(ctx context.Context, roomID string) string {
+	if full := resolveID(roomID, a.matrix.JoinedRoomIDs(ctx)); full != "" {
+		return full
+	}
+
+	return roomID
 }
 
 // systemPrompt returns the full system prompt including Matrix-specific context.

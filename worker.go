@@ -573,6 +573,10 @@ func (w *Worker) processPrompt(ctx context.Context, item Inbox) bool {
 	}
 
 	reply, targetRoom := extractSendTo(reply)
+	if targetRoom != "" {
+		targetRoom = w.app.resolveRoomID(ctx, targetRoom)
+	}
+
 	convID, replyToID := replyDestination(convID, item.ConversationID, item.ReplyTo, targetRoom)
 
 	if ctx.Err() != nil {

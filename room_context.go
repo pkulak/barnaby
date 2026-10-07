@@ -41,7 +41,11 @@ type roomMessage struct {
 
 // recordRoomMessage queues msg for the chat worker's session.
 func (a *App) recordRoomMessage(ctx context.Context, msg roomMessage) {
-	if err := a.inbox.Enqueue(ctx, PriorityUser, sourceRoomContext, formatRoomMessage(msg), "", msg.ConversationID); err != nil {
+	shown := msg
+	shown.ConversationID = a.shortRoomID(ctx, msg.ConversationID)
+	shown.MessageID = a.outbox.ShortID(ctx, msg.ConversationID, msg.MessageID)
+
+	if err := a.inbox.Enqueue(ctx, PriorityUser, sourceRoomContext, formatRoomMessage(shown), "", msg.ConversationID); err != nil {
 		slog.Error("failed to record room message", "conversation", msg.ConversationID, "error", err)
 
 		return

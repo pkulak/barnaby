@@ -27,6 +27,7 @@ type mockMatrix struct {
 	reactions             []reactionCall
 	systemPromptExtraText string
 	sendFileErr           error
+	joinedRooms           []string
 }
 
 type sentMessage struct {
@@ -93,6 +94,10 @@ func (m *mockMatrix) ResetConversation(_ context.Context, conversationID string)
 
 func (m *mockMatrix) OwnIdentity(context.Context, string) (string, string) {
 	return "Barnaby", "@barnaby:example.com"
+}
+
+func (m *mockMatrix) JoinedRoomIDs(_ context.Context) []string {
+	return m.joinedRooms
 }
 
 func (m *mockMatrix) SystemPromptExtra() string {

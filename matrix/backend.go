@@ -31,6 +31,7 @@ import (
 const (
 	maxMessageLen        = 30000
 	matrixRequestTimeout = 45 * time.Second
+	joinedRoomsTTL       = time.Minute
 
 	matrixSystemPromptExtra = `You are living in a Matrix chat room.
 
@@ -124,6 +125,10 @@ type Backend struct {
 
 	joinMu   sync.RWMutex
 	joinedAt map[id.RoomID]int64 // unix milliseconds; used to suppress pre-join timeline history
+
+	joinedRoomsMu      sync.Mutex
+	joinedRooms        []string
+	joinedRoomsFetched time.Time
 
 	// onRoomCleanup is called when a room is cleaned up (leave/ban).
 	// Wired by the caller to kill pi processes and stop trigger pipes.
@@ -376,6 +381,34 @@ func (b *Backend) OwnIdentity(ctx context.Context, conversationID string) (strin
 
 // SystemPromptExtra returns Matrix-specific system prompt context.
 func (b *Backend) SystemPromptExtra() string { return matrixSystemPromptExtra }
+
+// JoinedRoomIDs returns the rooms the bot is in. The list is cached for a
+// minute; on error the last list is returned.
+func (b *Backend) JoinedRoomIDs(ctx context.Context) []string {
+	b.joinedRoomsMu.Lock()
+	defer b.joinedRoomsMu.Unlock()
+
+	if time.Since(b.joinedRoomsFetched) < joinedRoomsTTL {
+		return b.joinedRooms
+	}
+
+	resp, err := b.client.JoinedRooms(ctx)
+	if err != nil {
+		slog.Warn("failed to list joined rooms", "error", err)
+
+		return b.joinedRooms
+	}
+
+	rooms := make([]string, len(resp.JoinedRooms))
+	for i, room := range resp.JoinedRooms {
+		rooms[i] = string(room)
+	}
+
+	b.joinedRooms = rooms
+	b.joinedRoomsFetched = time.Now()
+
+	return rooms
+}
 
 // --- internal handlers ---
 

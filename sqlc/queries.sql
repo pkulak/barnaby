@@ -7,6 +7,9 @@ ON CONFLICT(conversation_id, message_id) DO UPDATE SET text = excluded.text;
 SELECT text FROM sent_messages
 WHERE conversation_id = ? AND message_id = ?;
 
+-- name: ListOutboxIDs :many
+SELECT message_id FROM sent_messages WHERE conversation_id = ?;
+
 -- name: CountOutbox :one
 SELECT count(*) FROM sent_messages WHERE conversation_id = ?;
 

@@ -341,6 +341,33 @@ func (q *Queries) InsertReminder(ctx context.Context, arg InsertReminderParams) 
 	return err
 }
 
+const listOutboxIDs = `-- name: ListOutboxIDs :many
+SELECT message_id FROM sent_messages WHERE conversation_id = ?
+`
+
+func (q *Queries) ListOutboxIDs(ctx context.Context, conversationID string) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listOutboxIDs, conversationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var message_id string
+		if err := rows.Scan(&message_id); err != nil {
+			return nil, err
+		}
+		items = append(items, message_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRecurringReminders = `-- name: ListRecurringReminders :many
 SELECT id, cron, timezone, end_at, prompt
 FROM recurring_reminders

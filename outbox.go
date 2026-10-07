@@ -81,6 +81,17 @@ func (s *outboxStore) Put(ctx context.Context, conversationID, messageID, text s
 	}
 }
 
+// ShortID abbreviates a message ID for the agent; see shortID.
+func (s *outboxStore) ShortID(ctx context.Context, conversationID, messageID string) string {
+	return shortID(messageID, s.ids(ctx, conversationID))
+}
+
+// Resolve returns the full ID of the message in the conversation whose ID
+// is or starts with prefix, or "" if there is no single match.
+func (s *outboxStore) Resolve(ctx context.Context, conversationID, prefix string) string {
+	return resolveID(prefix, s.ids(ctx, conversationID))
+}
+
 // Get returns the text of a previously sent message, or "" if unknown.
 func (s *outboxStore) Get(ctx context.Context, conversationID, messageID string) string {
 	if messageID == "" {
@@ -104,4 +115,13 @@ func (s *outboxStore) Get(ctx context.Context, conversationID, messageID string)
 	}
 
 	return text
+}
+
+func (s *outboxStore) ids(ctx context.Context, conversationID string) []string {
+	ids, err := s.queries.ListOutboxIDs(ctx, conversationID)
+	if err != nil {
+		slog.Warn("failed to list outbox IDs", "conversation", conversationID, "error", err)
+	}
+
+	return ids
 }
