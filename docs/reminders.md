@@ -7,8 +7,7 @@ Enable the bundled `reminders` Pi extension to give the agent structured tools:
 - `remind_at(when, prompt)` — schedule a one-shot reminder
 - `remind_cron(cron, timezone, prompt, end_at?)` — schedule a recurring reminder
 - `remind_list()` — list pending one-shot and recurring reminders
-- `remind_cancel(id)` — cancel a one-shot reminder
-- `remind_cron_cancel(id)` — cancel a recurring reminder
+- `remind_cancel(id, recurring)` — cancel a one-shot reminder or recurring series
 
 Reminder prompts must be self-contained. The background session does not receive chat history.
 

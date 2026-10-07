@@ -79,7 +79,7 @@ func dispatchRecurringReminders(ctx context.Context, w *Worker, now time.Time) {
 		}
 
 		content := fmt.Sprintf(
-			"Recurring reminder:\nSeries ID: %d\nCron: %s\nTimezone: %s\nScheduled for: %s\nDispatched at: %s\nTo cancel future occurrences, use remind_cron_cancel with id %d.\n\nReminder:\n%s",
+			"Recurring reminder:\nSeries ID: %d\nCron: %s\nTimezone: %s\nScheduled for: %s\nDispatched at: %s\nTo cancel future occurrences, use remind_cancel with id %d and recurring true.\n\nReminder:\n%s",
 			reminder.ID,
 			reminder.Cron,
 			reminder.Timezone,

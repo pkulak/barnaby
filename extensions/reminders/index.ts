@@ -9,8 +9,7 @@
  *   remind_at(when, prompt)                         — schedule a one-shot reminder
  *   remind_cron(cron, timezone, prompt, end_at?)   — schedule a recurring reminder
  *   remind_list()                                  — list active reminders
- *   remind_cancel(id)                              — cancel a one-shot reminder
- *   remind_cron_cancel(id)                         — cancel a recurring reminder
+ *   remind_cancel(id, recurring)                   — cancel either kind
  *
  * The extension only writes to SQLite; all scheduling, delivery and cleanup
  * is owned by the barnaby process.
@@ -136,10 +135,6 @@ function routePrompt(prompt: string, roomId: string): string {
   return `Your response must begin with this exact routing line:\n<send-to>${roomId}</send-to>\n\n${prompt}`;
 }
 
-const ROUTING =
-  "When it fires, the reply goes to the room this reminder was set in, or the " +
-  "default room for voice and background requests. To send it to a different " +
-  "room, tell the prompt to start its response with <send-to>ROOM_ID</send-to>.";
 
 export default function remindersExtension(pi: ExtensionAPI) {
   if (!DB_PATH) {
@@ -167,19 +162,15 @@ export default function remindersExtension(pi: ExtensionAPI) {
     name: "remind_at",
     label: "Set reminder",
     description:
-      "Schedule a one-shot reminder. The prompt is delivered to the separate " +
-      "background agent at the given time (±1 min), then auto-deleted. Make " +
-      "the prompt self-contained: it cannot see this chat's history. " +
-      ROUTING,
+      "Schedule a one-shot reminder (±1 min). The prompt runs in a separate " +
+      "background session that can't see this chat, so make it self-contained. " +
+      "The reply goes to this room, or the default room for voice and background " +
+      "requests, unless the prompt says to start with <send-to>ROOM_ID</send-to>.",
     parameters: Type.Object({
       when: Type.String({
-        description:
-          "Future ISO 8601 timestamp with explicit timezone, " +
-          "e.g. 2025-06-15T14:00:00+02:00",
+        description: "Future ISO 8601 time with offset, e.g. 2025-06-15T14:00:00-07:00",
       }),
-      prompt: Type.String({
-        description: "Message to deliver when the reminder fires.",
-      }),
+      prompt: Type.String(),
     }),
     async execute(_id, params, signal, _onUpdate, ctx) {
       const at = normalizeWhen(params.when);
@@ -206,30 +197,16 @@ export default function remindersExtension(pi: ExtensionAPI) {
     name: "remind_cron",
     label: "Set recurring reminder",
     description:
-      "Schedule a recurring reminder using a five-field cron expression. The " +
-      "prompt runs in a separate background session, so it must be self-contained. " +
-      "Matching is checked once per minute in the supplied IANA timezone. " +
-      "Missed or failed occurrences are not retried. Day-of-month and " +
-      "day-of-week use standard cron OR semantics when both are restricted. " +
-      ROUTING,
+      "Schedule a recurring reminder. The prompt and reply work as in remind_at. " +
+      "Missed occurrences are not retried.",
     parameters: Type.Object({
       cron: Type.String({
-        description:
-          "Five-field cron expression: minute hour day-of-month month day-of-week, " +
-          "e.g. '0 12 * * 1' for Mondays at noon.",
+        description: "Five fields, e.g. '0 12 * * 1' for Mondays at noon.",
       }),
-      timezone: Type.String({
-        description: "IANA timezone name, e.g. America/Los_Angeles.",
-      }),
-      prompt: Type.String({
-        description: "Message to deliver whenever the cron schedule matches.",
-      }),
+      timezone: Type.String({ description: "IANA name, e.g. America/Los_Angeles." }),
+      prompt: Type.String(),
       end_at: Type.Optional(
-        Type.String({
-          description:
-            "Optional inclusive end time as an ISO 8601 timestamp with explicit " +
-            "timezone, e.g. 2026-12-31T23:59:00-08:00.",
-        }),
+        Type.String({ description: "Inclusive end, ISO 8601 with offset." }),
       ),
     }),
     async execute(_id, params, signal, _onUpdate, ctx) {
@@ -285,40 +262,18 @@ export default function remindersExtension(pi: ExtensionAPI) {
   pi.registerTool({
     name: "remind_cancel",
     label: "Cancel reminder",
-    description: "Delete a pending reminder by id.",
-    parameters: Type.Object({
-      id: Type.Integer({ description: "Reminder id to cancel" }),
-    }),
-    async execute(_id, params, signal) {
-      const out = await sqlite(
-        `DELETE FROM reminders WHERE id = ${params.id}; SELECT changes();`,
-        signal,
-      );
-      const n = Number(out);
-      return {
-        content: [
-          {
-            type: "text",
-            text: n > 0 ? `Reminder #${params.id} cancelled.` : `No reminder with id ${params.id}.`,
-          },
-        ],
-        details: { deleted: n },
-      };
-    },
-  });
-
-  pi.registerTool({
-    name: "remind_cron_cancel",
-    label: "Cancel recurring reminder",
     description:
-      "Delete an active recurring reminder series by id. An occurrence already " +
-      "queued for delivery may still run.",
+      "Cancel a reminder by id. An occurrence of a recurring series that is " +
+      "already queued may still run.",
     parameters: Type.Object({
-      id: Type.Integer({ description: "Recurring reminder series id to cancel" }),
+      id: Type.Integer(),
+      recurring: Type.Boolean({ description: "True for a recurring series." }),
     }),
     async execute(_id, params, signal) {
+      const table = params.recurring ? "recurring_reminders" : "reminders";
+      const kind = params.recurring ? "recurring reminder" : "reminder";
       const out = await sqlite(
-        `DELETE FROM recurring_reminders WHERE id = ${params.id}; SELECT changes();`,
+        `DELETE FROM ${table} WHERE id = ${params.id}; SELECT changes();`,
         signal,
       );
       const n = Number(out);
@@ -326,10 +281,7 @@ export default function remindersExtension(pi: ExtensionAPI) {
         content: [
           {
             type: "text",
-            text:
-              n > 0
-                ? `Recurring reminder #${params.id} cancelled. Any occurrence already queued may still run.`
-                : `No recurring reminder with id ${params.id}.`,
+            text: n > 0 ? `Cancelled ${kind} #${params.id}.` : `No ${kind} with id ${params.id}.`,
           },
         ],
         details: { deleted: n },
