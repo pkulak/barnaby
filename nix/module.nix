@@ -45,8 +45,8 @@ let
           All skills are assembled into a single directory and passed via
           BARNABY_PI_SKILLS_DIR.
 
-          Bundled skills: `image`, `transcribe`, `sports-scores`, and
-          `sports-monitor`. See docs/skills.md for what each one needs.
+          Bundled skills: `image`, `transcribe`, `sports-scores`,
+          `sports-monitor`, and `web-search`. See docs/skills.md for what each one needs.
         '';
         example = lib.literalExpression ''
           {
@@ -346,6 +346,7 @@ let
           pkgs.jq
         ];
         sports-scores = [ pkgs.python3 ];
+        web-search = [ pkgs.python3 ];
       };
 
       skillPackages = lib.concatLists (
