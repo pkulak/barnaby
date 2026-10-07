@@ -14,16 +14,9 @@ let
   stateDirOf = name: "/var/lib/${name}";
 
   mkInstanceOptions =
-    { name, config }:
+    name:
     let
       stateDir = stateDirOf name;
-
-      skillsDir = pkgs.linkFarm "barnaby-skills-${name}" (
-        lib.mapAttrsToList (sname: path: {
-          name = sname;
-          inherit path;
-        }) config.skills
-      );
     in
     {
       package = lib.mkOption {
@@ -249,9 +242,11 @@ let
 
             BARNABY_PI_SKILLS_DIR = lib.mkOption {
               type = lib.types.str;
-              default = toString skillsDir;
-              defaultText = lib.literalExpression ''"''${skillsDir}"'';
-              description = "Directory to scan for skill subdirectories (each must contain SKILL.md). Automatically populated from the `skills` option.";
+              # A short, stable link to skillsDir: pi lists every skill's path in
+              # the system prompt, and store paths cost many tokens and change
+              # with each deploy.
+              default = "${stateDir}/skills";
+              description = "Directory to scan for skill subdirectories (each must contain SKILL.md). By default a link to the skills from the `skills` option.";
             };
 
             BARNABY_SOUL_FILE = lib.mkOption {
@@ -288,12 +283,12 @@ let
     };
 
   instanceModule =
-    { name, config, ... }:
+    { name, ... }:
     {
       options = {
         enable = lib.mkEnableOption "Barnaby messaging bot instance '${name}'";
       }
-      // mkInstanceOptions { inherit name config; };
+      // mkInstanceOptions name;
     };
 
   enabledInstances = lib.filterAttrs (_: i: i.enable) cfg.instances;
@@ -324,6 +319,13 @@ let
       );
 
       piModelsJson = jsonFormat.generate "pi-models-${name}.json" icfg.piModels;
+
+      skillsDir = pkgs.linkFarm "barnaby-skills-${name}" (
+        lib.mapAttrsToList (sname: path: {
+          name = sname;
+          inherit path;
+        }) icfg.skills
+      );
 
       # Host-side wrapper to interact with pi inside the container as the barnaby user.
       barnabyPi = pkgs.writeShellScriptBin "${containerName}-pi" ''
@@ -408,6 +410,7 @@ let
               "d ${stateDir} 0750 barnaby barnaby -"
               "d ${icfg.environment.PI_CODING_AGENT_DIR} 0750 barnaby barnaby -"
               "L+ ${icfg.environment.PI_CODING_AGENT_DIR}/settings.json - - - - ${piSettingsJson}"
+              "L+ ${stateDir}/skills - - - - ${skillsDir}"
             ]
             ++ lib.optional (
               icfg.piModels != { }
