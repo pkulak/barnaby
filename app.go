@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -375,7 +374,8 @@ func (a *App) handlePrompt(ctx context.Context, msg matrix.Message) {
 	a.worker.Notify()
 }
 
-// buildPromptText prepends room metadata and reply-quote context.
+// buildPromptText prepends message metadata as frontmatter, plus any
+// reply-quote context. The worker adds the time line when it sends the prompt.
 func (a *App) buildPromptText(msg matrix.Message, quoted string) string {
 	promptText := msg.Text
 
@@ -387,21 +387,12 @@ func (a *App) buildPromptText(msg matrix.Message, quoted string) string {
 		}
 	}
 
-	tags := buildContextTags(msg)
-	if msg.MessageID != "" {
-		messageIDTag := "<message-id>" + escape(msg.MessageID) + "</message-id>"
-		if tags == "" {
-			tags = messageIDTag
-		} else {
-			tags += "\n" + messageIDTag
-		}
+	lines := frontmatterLines(msg)
+	if len(lines) == 0 {
+		return promptText
 	}
 
-	if tags != "" {
-		promptText = tags + "\n\n" + promptText
-	}
-
-	return promptText
+	return "---\n" + strings.Join(lines, "\n") + "\n---\n" + promptText
 }
 
 func senderLabel(msg matrix.Message) string {
@@ -472,35 +463,49 @@ func (a *App) checkGroupMessage(ctx context.Context, msg matrix.Message) bool {
 	return respond
 }
 
-// buildContextTags returns a block of XML-style context tags derived from the
-// message's enrichment fields. Each non-zero field produces one line; zero
-// values are omitted entirely. Returns an empty string if no fields are set.
-func buildContextTags(msg matrix.Message) string {
+// frontmatterLines returns the message's metadata as "key: value" lines:
+//
+//	from: Phil @phil:kulak.us
+//	room: The Fam !Lmhiri (6 members)
+//	id: $6b5O2_
+//
+// A DM's room is "DM <id>". Missing fields are left out.
+func frontmatterLines(msg matrix.Message) []string {
 	var lines []string
 
-	if msg.SenderID != "" {
-		lines = append(lines, "<from-id>"+escape(msg.SenderID)+"</from-id>")
+	if from := joinNonEmpty(msg.SenderName, msg.SenderID); from != "" {
+		lines = append(lines, "from: "+from)
 	}
 
 	if msg.ConversationID != "" {
-		lines = append(lines, "<room-id>"+escape(msg.ConversationID)+"</room-id>")
+		room := joinNonEmpty(msg.RoomName, msg.ConversationID)
+		if msg.IsDM {
+			room = "DM " + msg.ConversationID
+		} else if msg.RoomSize > 0 {
+			room += fmt.Sprintf(" (%d members)", msg.RoomSize)
+		}
+
+		lines = append(lines, "room: "+room)
 	}
 
-	lines = append(lines, "<is-dm>"+strconv.FormatBool(msg.IsDM)+"</is-dm>")
-
-	if msg.SenderName != "" {
-		lines = append(lines, "<from-name>"+escape(msg.SenderName)+"</from-name>")
+	if msg.MessageID != "" {
+		lines = append(lines, "id: "+msg.MessageID)
 	}
 
-	if msg.RoomName != "" && !msg.IsDM {
-		lines = append(lines, "<room-name>"+escape(msg.RoomName)+"</room-name>")
+	return lines
+}
+
+// joinNonEmpty joins the non-empty parts with spaces, on one line.
+func joinNonEmpty(parts ...string) string {
+	var kept []string
+
+	for _, part := range parts {
+		if part = strings.Join(strings.Fields(part), " "); part != "" {
+			kept = append(kept, part)
+		}
 	}
 
-	if msg.RoomSize > 0 && !msg.IsDM {
-		lines = append(lines, "<room-size>"+strconv.Itoa(msg.RoomSize)+"</room-size>")
-	}
-
-	return strings.Join(lines, "\n")
+	return strings.Join(kept, " ")
 }
 
 func escape(s string) string {

@@ -62,7 +62,7 @@ func TestApp_GroupTrigger_SkipRecordsRoomContext(t *testing.T) {
 	}
 
 	if item.Source != sourceRoomContext ||
-		!strings.Contains(item.Content, `sender-name="Gwen"`) ||
+		!strings.Contains(item.Content, `from="Gwen"`) ||
 		!strings.Contains(item.Content, "Did you know dogs can&#39;t look up?") {
 		t.Errorf("item = %+v, want Gwen's message as room context", item)
 	}

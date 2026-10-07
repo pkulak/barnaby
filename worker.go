@@ -919,11 +919,20 @@ func shouldSuppressReply(reply, source string, background bool) bool {
 	return false
 }
 
-// injectTimestamp prepends the current date/time to every prompt so the agent knows
-// the current time. Uses RFC 3339 (the internet profile of ISO 8601):
-// unambiguous, machine-readable, and includes UTC offset.
+// promptTimeFormat is ISO 8601 to the minute, with the UTC offset the agent
+// needs to write reminder timestamps.
+const promptTimeFormat = "2006-01-02T15:04Z07:00"
+
+// injectTimestamp adds the current time to every prompt's frontmatter, so the
+// agent knows it. A prompt without frontmatter gets one.
 func injectTimestamp(prompt string) string {
-	return "<time>" + time.Now().Format(time.RFC3339) + "</time>\n" + prompt
+	line := "time: " + time.Now().Format(promptTimeFormat) + "\n"
+
+	if rest, ok := strings.CutPrefix(prompt, "---\n"); ok {
+		return "---\n" + line + rest
+	}
+
+	return "---\n" + line + "---\n" + prompt
 }
 
 // handleNoRoomID requeues triggers (room may appear later) and drops

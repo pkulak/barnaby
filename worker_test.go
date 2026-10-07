@@ -117,24 +117,25 @@ func newBlockedBackgroundPiWorker(t *testing.T, inbox *InboxStore) *Worker {
 func TestInjectTimestamp(t *testing.T) {
 	t.Parallel()
 
-	got := injectTimestamp("hello")
+	for _, tt := range []struct{ prompt, want string }{
+		{"hello", "---\n---\nhello"},
+		{"---\nfrom: Phil\n---\nyup", "---\nfrom: Phil\n---\nyup"},
+	} {
+		got := injectTimestamp(tt.prompt)
 
-	rest, ok := strings.CutPrefix(got, "<time>")
-	if !ok {
-		t.Fatal("missing <time> prefix")
-	}
+		rest, ok := strings.CutPrefix(got, "---\ntime: ")
+		if !ok {
+			t.Fatalf("injectTimestamp(%q) = %q, want a leading time line", tt.prompt, got)
+		}
 
-	dt, rest, ok := strings.Cut(rest, "</time>\n")
-	if !ok {
-		t.Fatal("missing </time> and newline separator")
-	}
+		dt, rest, _ := strings.Cut(rest, "\n")
+		if _, err := time.Parse(promptTimeFormat, dt); err != nil {
+			t.Errorf("timestamp %q: %v", dt, err)
+		}
 
-	if _, err := time.Parse(time.RFC3339, dt); err != nil {
-		t.Fatalf("timestamp %q is not RFC 3339: %v", dt, err)
-	}
-
-	if rest != "hello" {
-		t.Errorf("prompt after timestamp = %q, want %q", rest, "hello")
+		if "---\n"+rest != tt.want {
+			t.Errorf("injectTimestamp(%q) without time = %q, want %q", tt.prompt, "---\n"+rest, tt.want)
+		}
 	}
 }
 
@@ -150,8 +151,8 @@ func TestBuildPrompt_InjectsTimestamp(t *testing.T) {
 		t.Fatal("buildPrompt returned false")
 	}
 
-	if !strings.Contains(prompt, "<time>") {
-		t.Errorf("buildPrompt = %q, want <time> tag injected", prompt)
+	if !strings.HasPrefix(prompt, "---\ntime: ") {
+		t.Errorf("buildPrompt = %q, want time injected", prompt)
 	}
 
 	if !strings.Contains(prompt, "hello") {

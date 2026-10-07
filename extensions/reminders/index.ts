@@ -111,8 +111,9 @@ function normalizeTimezone(timezone: string): string {
 }
 
 // The Matrix room of the message being handled, so a reminder fires back
-// where it was set. Barnaby tags each chat prompt with <room-id>; voice and
-// background prompts have none, and their reminders go to the default room.
+// where it was set. Barnaby's chat prompts start with frontmatter that has a
+// "room: <name> <id>" line; voice and background prompts have none, and their
+// reminders go to the default room.
 function currentRoomId(ctx: ExtensionContext): string {
   const branch = ctx.sessionManager.getBranch();
   for (let i = branch.length - 1; i >= 0; i--) {
@@ -123,7 +124,8 @@ function currentRoomId(ctx: ExtensionContext): string {
       typeof content === "string"
         ? content
         : content.map((part) => (part.type === "text" ? part.text : "")).join("");
-    return text.match(/<room-id>([^<]+)<\/room-id>/)?.[1].trim() ?? "";
+    const frontmatter = text.match(/^---\n([\s\S]*?)\n---\n/)?.[1] ?? "";
+    return frontmatter.match(/^room: (?:.* )?(![^ ]+)(?: \(\d+ members\))?$/m)?.[1] ?? "";
   }
   return "";
 }

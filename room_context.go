@@ -24,7 +24,8 @@ var roomContextExtension []byte
 
 const roomContextCommand = "/room-context "
 
-// roomMessage is one room event recorded as context.
+// roomMessage is one room event recorded as context. Its IDs are the short
+// ones the agent sees.
 type roomMessage struct {
 	ConversationID string
 	RoomName       string
@@ -54,6 +55,11 @@ func (a *App) recordRoomMessage(ctx context.Context, msg roomMessage) {
 	a.worker.Notify()
 }
 
+// formatRoomMessage renders msg for the agent, for example:
+//
+//	<room-message from="Chase" room="The Fam !Lmhiri" time="2026-10-05T11:35-07:00" id="$GLmxZP">
+//
+// Posts from the background worker are from "you (background)".
 func formatRoomMessage(msg roomMessage) string {
 	var attrs strings.Builder
 
@@ -63,17 +69,26 @@ func formatRoomMessage(msg roomMessage) string {
 		}
 	}
 
-	attr("speaker", msg.Speaker)
-	attr("worker", msg.Worker)
-	attr("sender-name", msg.SenderName)
-	attr("sender-id", msg.SenderID)
-	attr("room-name", msg.RoomName)
-	attr("room-id", msg.ConversationID)
-	attr("message-id", msg.MessageID)
+	from := joinNonEmpty(msg.SenderName)
+	if from == "" {
+		from = msg.SenderID
+	}
+
+	if msg.Speaker == "you" {
+		from = "you"
+		if msg.Worker != "" {
+			from += " (" + msg.Worker + ")"
+		}
+	}
+
+	attr("from", from)
+	attr("room", joinNonEmpty(msg.RoomName, msg.ConversationID))
 
 	if !msg.At.IsZero() {
-		attr("time", msg.At.Format(time.RFC3339))
+		attr("time", msg.At.Format(promptTimeFormat))
 	}
+
+	attr("id", msg.MessageID)
 
 	return fmt.Sprintf("<room-message%s>\n%s\n</room-message>", attrs.String(), html.EscapeString(msg.Text))
 }
