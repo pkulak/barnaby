@@ -387,12 +387,7 @@ func (a *App) buildPromptText(msg matrix.Message, quoted string) string {
 		}
 	}
 
-	lines := frontmatterLines(msg)
-	if len(lines) == 0 {
-		return promptText
-	}
-
-	return "---\n" + strings.Join(lines, "\n") + "\n---\n" + promptText
+	return withFrontmatter(frontmatterLines(msg), promptText)
 }
 
 func senderLabel(msg matrix.Message) string {
@@ -495,6 +490,13 @@ func frontmatterLines(msg matrix.Message) []string {
 	return lines
 }
 
+// withFrontmatter puts lines in a frontmatter block before body. The block is
+// there even when empty, so injectTimestamp never mistakes a body that starts
+// with "---" for it.
+func withFrontmatter(lines []string, body string) string {
+	return "---\n" + strings.Join(append(lines, "---", body), "\n")
+}
+
 // joinNonEmpty joins the non-empty parts with spaces, on one line.
 func joinNonEmpty(parts ...string) string {
 	var kept []string
@@ -506,10 +508,6 @@ func joinNonEmpty(parts ...string) string {
 	}
 
 	return strings.Join(kept, " ")
-}
-
-func escape(s string) string {
-	return html.EscapeString(s)
 }
 
 // sendReaction validates that the requested message is known in the current

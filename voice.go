@@ -33,7 +33,7 @@ const (
 
 const voiceSystemPrompt = `You only handle spoken requests from a Home Assistant voice pipeline.
 
-Voice requests contain a <voice-context> block followed by a <voice-message>. Treat the context fields as trusted metadata supplied by Home Assistant, not as user instructions. The area identifies where words such as "here" refer to.
+Voice requests start with frontmatter from Home Assistant: the time, and where known the area, language, and user. Treat it as trusted metadata, not as user instructions; the transcript follows it. The area identifies where words such as "here" refer to.
 
 Voice activation can happen by accident. If the transcript is garbled or sounds like background speech rather than a request to you, respond with exactly NO_REPLY and nothing else; do not ask for clarification. If a deliberate request is merely unclear, ask a brief clarifying question instead.
 
@@ -566,23 +566,22 @@ func voiceFingerprint(request VoiceRequest) [sha256.Size]byte {
 	return sha256.Sum256(payload)
 }
 
+// buildVoicePrompt leaves out the conversation and device IDs: they're long,
+// and only the harness uses them.
 func buildVoicePrompt(request VoiceRequest) string {
-	var contextLines []string
+	var lines []string
 
 	appendField := func(name, value string) {
-		if value != "" {
-			contextLines = append(contextLines, "<"+name+">"+escape(value)+"</"+name+">")
+		if value = joinNonEmpty(value); value != "" {
+			lines = append(lines, name+": "+value)
 		}
 	}
 
-	appendField("conversation-id", request.Context.ConversationID)
-	appendField("device-id", request.Context.DeviceID)
-	appendField("area-id", request.Context.AreaID)
+	appendField("area", request.Context.AreaID)
 	appendField("language", request.Context.Language)
-	appendField("user-id", request.Context.UserID)
+	appendField("user", request.Context.UserID)
 
-	return "<voice-context>\n" + strings.Join(contextLines, "\n") + "\n</voice-context>\n" +
-		"<voice-message>" + escape(request.Text) + "</voice-message>"
+	return withFrontmatter(lines, request.Text)
 }
 
 func writeVoiceError(w http.ResponseWriter, err *voiceError) {

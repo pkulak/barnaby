@@ -575,7 +575,7 @@ func TestBuildPromptTextFrontmatter(t *testing.T) {
 		{
 			name: "no metadata",
 			msg:  matrix.Message{Text: "hello"},
-			want: "hello",
+			want: "---\n---\nhello",
 		},
 	}
 

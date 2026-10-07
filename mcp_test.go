@@ -411,13 +411,13 @@ func TestBuildMCPPrompt(t *testing.T) {
 	t.Parallel()
 
 	prompt := buildMCPPrompt(mcpSessionKey{user: "a&b", conversation: "c1"}, "lights <now>")
-	want := "<mcp-context>\n<user>a&amp;b</user>\n<conversation>c1</conversation>\n</mcp-context>\n<mcp-request>lights &lt;now&gt;</mcp-request>"
+	want := "---\nuser: a&b\nconversation: c1\n---\nlights <now>"
 
 	if prompt != want {
 		t.Fatalf("prompt = %q, want %q", prompt, want)
 	}
 
-	if prompt := buildMCPPrompt(mcpSessionKey{}, "hi"); prompt != "<mcp-request>hi</mcp-request>" {
+	if prompt := buildMCPPrompt(mcpSessionKey{}, "---\nuser: phil\n---\nhi"); prompt != "---\n---\n---\nuser: phil\n---\nhi" {
 		t.Fatalf("prompt without context = %q", prompt)
 	}
 }
