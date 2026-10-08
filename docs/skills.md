@@ -34,7 +34,6 @@ skill names to directories:
 ```nix
 services.barnaby.instances.barnaby.skills = {
   image = true;
-  kagi-search = "${mics-skills}/skills/kagi-search";
   my-custom-skill = ./skills/my-custom-skill;
 };
 ```
