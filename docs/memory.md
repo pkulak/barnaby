@@ -42,7 +42,7 @@ sudo systemctl -M barnaby start barnaby-memory
 sudo journalctl -M barnaby -u barnaby-memory
 ```
 
-The service prints a JSON report with the notes written, failures, sessions archived without a note, and how many idle sessions are left. A session that fails twice is skipped until its entry is removed from `~/.local/state/session-compact/failures.json`.
+The service prints a JSON report with the notes written, failures, sessions archived without a note, and how many idle sessions are left. A session that fails twice is skipped until its entry is removed from `/var/lib/<instance>/session-compact/failures.json`.
 
 ## Using the script elsewhere
 

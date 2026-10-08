@@ -559,6 +559,8 @@ let
                   "${name}:chat:${icfg.environment.BARNABY_PI_SESSION_DIR}:${memoryDir}"
                   "--archive"
                   "${stateDir}/session-archive"
+                  "--state"
+                  "${stateDir}/session-compact"
                   "--model"
                   memoryModel
                   "run"
