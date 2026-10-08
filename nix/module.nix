@@ -45,7 +45,7 @@ let
           All skills are assembled into a single directory and passed via
           BARNABY_PI_SKILLS_DIR.
 
-          Bundled skills: `image`, `transcribe`, `sports-scores`,
+          Bundled skills: `calendar`, `image`, `transcribe`, `sports-scores`,
           `sports-monitor`, `weather`, and `web-search`. See docs/skills.md for what each one needs.
         '';
         example = lib.literalExpression ''
@@ -387,6 +387,7 @@ let
       # Packages the bundled skills run. They go last on the service's PATH,
       # so anything in extraPackages (a Python with more modules, say) wins.
       bundledSkillPackages = {
+        calendar = [ (pkgs.python3.withPackages (ps: [ ps.caldav ])) ];
         image = [ (pkgs.python3.withPackages (ps: [ ps.requests ])) ];
         transcribe = [
           pkgs.curl

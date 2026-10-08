@@ -14,6 +14,7 @@ Barnaby ships a few skills in `skills/`:
 
 | Skill | What it does | Needs |
 |---|---|---|
+| `calendar` | Reads, adds, changes, and cancels events on CalDAV calendars, in the local timezone (`TZ`) | `CALDAV_URL`, `CALDAV_USERNAME`, and `CALDAV_PASSWORD` (Fastmail's URL is `https://caldav.fastmail.com/dav/`) |
 | `image` | Generates or edits images (`openai/gpt-image-2.5-sunburst`) | `OPENROUTER_API_KEY` |
 | `transcribe` | Transcribes voice messages and other audio (`openai/gpt-4o-transcribe`) | `OPENROUTER_API_KEY` |
 | `sports-scores` | Scores, schedules, standings, and rankings from ESPN, in the local timezone (`TZ`) | `OPENROUTER_API_KEY` for team search only |

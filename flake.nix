@@ -77,6 +77,15 @@
             '';
           });
 
+          calendar =
+            pkgs.runCommand "calendar-tests"
+              { nativeBuildInputs = [ (pkgs.python3.withPackages (ps: [ ps.caldav ])) ]; }
+              ''
+                cd ${./skills/calendar/scripts}
+                python3 -B -m unittest -v test_calendar_cli
+                touch $out
+              '';
+
           weather = pkgs.runCommand "weather-tests" { nativeBuildInputs = [ pkgs.python3 ]; } ''
             cd ${./skills/weather/scripts}
             python3 -B -m unittest -v test_weather
