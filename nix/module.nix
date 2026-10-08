@@ -46,7 +46,7 @@ let
           BARNABY_PI_SKILLS_DIR.
 
           Bundled skills: `image`, `transcribe`, `sports-scores`,
-          `sports-monitor`, and `web-search`. See docs/skills.md for what each one needs.
+          `sports-monitor`, `weather`, and `web-search`. See docs/skills.md for what each one needs.
         '';
         example = lib.literalExpression ''
           {
@@ -393,6 +393,7 @@ let
           pkgs.jq
         ];
         sports-scores = [ pkgs.python3 ];
+        weather = [ pkgs.python3 ];
         web-search = [ pkgs.python3 ];
       };
 

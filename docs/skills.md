@@ -18,6 +18,7 @@ Barnaby ships a few skills in `skills/`:
 | `transcribe` | Transcribes voice messages and other audio (`openai/gpt-4o-transcribe`) | `OPENROUTER_API_KEY` |
 | `sports-scores` | Scores, schedules, standings, and rankings from ESPN, in the local timezone (`TZ`) | `OPENROUTER_API_KEY` for team search only |
 | `sports-monitor` | Watches a live game and sends one alert | The `sports-scores` skill and the `reminders` extension |
+| `weather` | Current conditions, forecasts, precipitation timing, AQI, and severe-weather events from Tomorrow.io and PurpleAir | `TOMORROWIO_API_KEY`, and `WEATHER_HOME` (`latitude,longitude`) for a default location |
 | `web-search` | Searches the web, news, images, videos, and podcasts with Kagi | `KAGI_KEY` |
 
 `sports-scores` matches team names with Jev, so it has no list of favorite teams. If
