@@ -73,6 +73,7 @@ response back to the original transport.
 - **[Skills](docs/skills.md)** — Teaching the agent new capabilities via markdown instructions
 - **[Extensions](docs/extensions.md)** — TypeScript lifecycle hooks and custom tools
 - **[Reminders](docs/reminders.md)** — One-shot reminders, recurring schedules, and trigger pipes
+- **[Memory](docs/memory.md)** — Nightly notes from past conversations, and how the agent searches them
 
 ## Origins
 

@@ -170,6 +170,35 @@ let
         description = "Additional bind mounts into the container.";
       };
 
+      memory = {
+        enable = lib.mkEnableOption ''
+          long-term memory. Every night at 03:00, up to 10 sessions that have
+          been idle for 3 days become markdown notes in `~/memory`, and their
+          raw transcripts are compressed into `~/session-archive`. The agent's
+          prompt gets instructions for searching the notes, and chat runs get
+          their index'';
+
+        directory = lib.mkOption {
+          type = lib.types.str;
+          default = "${stateDir}/memory";
+          description = ''
+            Host directory for the notes. The agent always sees it at
+            `~/memory`. A directory outside the state directory must already
+            exist and be writable by the container's `barnaby` user.
+          '';
+        };
+
+        model = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
+          default = null;
+          description = ''
+            The pi model that writes the notes, as `provider/id` with an
+            optional `:thinking` suffix. Null uses the chat model.
+          '';
+          example = "openrouter/anthropic/claude-sonnet-4.5:medium";
+        };
+      };
+
       environment = lib.mkOption {
         type = lib.types.submodule {
           freeformType = lib.types.attrsOf lib.types.str;
@@ -311,13 +340,31 @@ let
 
       # Resolve extension values: `true` means use the corresponding
       # extension package from the barnaby flake, a path is used as-is.
-      resolvedExtensions = lib.mapAttrs (
-        ename: value:
-        if value == true then
-          self.packages.${pkgs.stdenv.hostPlatform.system}."extension-${ename}"
+      resolvedExtensions =
+        lib.mapAttrs (
+          ename: value:
+          if value == true then
+            self.packages.${pkgs.stdenv.hostPlatform.system}."extension-${ename}"
+          else
+            value
+        ) (lib.filterAttrs (_: v: v != false) icfg.extensions)
+        // lib.optionalAttrs icfg.memory.enable { memory-index = "${../extensions/memory-index}"; };
+
+      # Inside the container, notes are always at ~/memory.
+      memoryDir = "${stateDir}/memory";
+      memoryModel =
+        if icfg.memory.model != null then
+          icfg.memory.model
         else
-          value
-      ) (lib.filterAttrs (_: v: v != false) icfg.extensions);
+          "${icfg.environment.BARNABY_PI_PROVIDER}/${icfg.environment.BARNABY_PI_MODEL}";
+
+      serviceEnvironment = {
+        HOME = stateDir;
+      }
+      // lib.filterAttrs (_: v: v != "") icfg.environment;
+      serviceEnvironmentFiles = lib.imap0 (
+        i: _: "/run/secrets/${containerName}-envfile-${toString i}"
+      ) icfg.environmentFiles;
 
       # Generate a settings.json for pi that lists declared extensions.
       # Installed into PI_CODING_AGENT_DIR at service startup so pi
@@ -419,6 +466,12 @@ let
             };
           }) icfg.environmentFiles
         )
+        // lib.optionalAttrs (icfg.memory.enable && icfg.memory.directory != memoryDir) {
+          ${memoryDir} = {
+            hostPath = icfg.memory.directory;
+            isReadOnly = false;
+          };
+        }
         // icfg.extraBindMounts;
 
         extraFlags = lib.mapAttrsToList (
@@ -450,7 +503,10 @@ let
             ]
             ++ lib.optional (
               icfg.piModels != { }
-            ) "L+ ${icfg.environment.PI_CODING_AGENT_DIR}/models.json - - - - ${piModelsJson}";
+            ) "L+ ${icfg.environment.PI_CODING_AGENT_DIR}/models.json - - - - ${piModelsJson}"
+            ++ lib.optional (
+              icfg.memory.enable && icfg.memory.directory == memoryDir
+            ) "d ${memoryDir} 0750 barnaby barnaby -";
 
             systemd.services.barnaby = {
               description = "Barnaby Matrix Bot (${name})";
@@ -468,15 +524,10 @@ let
               ++ icfg.extraPackages
               ++ skillPackages;
 
-              environment = {
-                HOME = stateDir;
-              }
-              // lib.filterAttrs (_: v: v != "") icfg.environment;
+              environment = serviceEnvironment;
 
               serviceConfig = {
-                EnvironmentFile = lib.imap0 (
-                  i: _: "/run/secrets/${containerName}-envfile-${toString i}"
-                ) icfg.environmentFiles;
+                EnvironmentFile = serviceEnvironmentFiles;
                 ImportCredential = lib.attrNames icfg.credentialFiles;
                 ExecStart = lib.getExe barnabyPkg;
                 Restart = "on-failure";
@@ -486,6 +537,43 @@ let
                 WorkingDirectory = stateDir;
                 StateDirectory = containerName;
                 StateDirectoryMode = "0750";
+              };
+            };
+
+            systemd.services.barnaby-memory = lib.mkIf icfg.memory.enable {
+              description = "Turn idle Barnaby sessions into memory notes (${name})";
+              path = [
+                icfg.piPackage
+                pkgs.zstd
+              ];
+              environment = serviceEnvironment;
+              serviceConfig = {
+                Type = "oneshot";
+                EnvironmentFile = serviceEnvironmentFiles;
+                ExecStart = lib.escapeShellArgs [
+                  "${pkgs.python3}/bin/python3"
+                  "${../memory}/session-compact.py"
+                  "--source"
+                  "${name}:chat:${icfg.environment.BARNABY_PI_SESSION_DIR}:${memoryDir}"
+                  "--archive"
+                  "${stateDir}/session-archive"
+                  "--model"
+                  memoryModel
+                  "run"
+                  "--limit"
+                  "10"
+                ];
+                User = "barnaby";
+                Group = "barnaby";
+                WorkingDirectory = stateDir;
+              };
+            };
+
+            systemd.timers.barnaby-memory = lib.mkIf icfg.memory.enable {
+              wantedBy = [ "timers.target" ];
+              timerConfig = {
+                OnCalendar = "03:00";
+                Persistent = true;
               };
             };
 
