@@ -17,7 +17,9 @@ graph LR
 The HTTP API is disabled by default. Enabling it adds a third worker alongside
 chat and background. The voice worker has separate conversation context, but it
 uses the normal provider, model, soul, working directory, skills, and tools.
-There is no restricted voice permission profile.
+There is no restricted voice permission profile. To give spoken replies extra
+instructions, such as markup for your text-to-speech engine, put them in a file
+and set `BARNABY_VOICE_PROMPT_FILE`. Only the voice worker sees them.
 
 The API is an addition to the Matrix bot, not a standalone Barnaby backend.
 Matrix configuration is still required, and Matrix is also used to administer

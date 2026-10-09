@@ -27,6 +27,9 @@ type HTTPConfig struct {
 	BearerToken string
 	// MCPBearerToken enables the /mcp endpoint on the same listener.
 	MCPBearerToken string
+	// VoicePrompt is appended to the voice worker's system prompt, after the
+	// built-in voice instructions.
+	VoicePrompt string
 }
 
 type MatrixConfig struct {
@@ -149,6 +152,15 @@ func loadHTTPConfig(env envReader) (HTTPConfig, error) {
 
 	if httpCfg.MCPBearerToken != "" && httpCfg.Listen == "" {
 		return HTTPConfig{}, errors.New("BARNABY_HTTP_LISTEN is required when BARNABY_MCP_BEARER_TOKEN is set")
+	}
+
+	if path := env.str("BARNABY_VOICE_PROMPT_FILE"); path != "" {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return HTTPConfig{}, fmt.Errorf("BARNABY_VOICE_PROMPT_FILE: %w", err)
+		}
+
+		httpCfg.VoicePrompt = strings.TrimSpace(string(data))
 	}
 
 	return httpCfg, nil

@@ -125,6 +125,30 @@ func TestLoadConfig_VoiceInheritsChatConfig(t *testing.T) {
 	}
 }
 
+func TestLoadConfig_VoicePromptFile(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "voice.txt")
+	if err := os.WriteFile(path, []byte("Speak softly.\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	env := baseMatrixEnv()
+	env["BARNABY_VOICE_PROMPT_FILE"] = path
+
+	cfg, err := loadConfig(testEnv(env))
+	if err != nil || cfg.HTTP.VoicePrompt != "Speak softly." {
+		t.Errorf("VoicePrompt = %q, err = %v; want %q", cfg.HTTP.VoicePrompt, err, "Speak softly.")
+	}
+
+	env["BARNABY_VOICE_PROMPT_FILE"] = filepath.Join(t.TempDir(), "missing.txt")
+
+	_, err = loadConfig(testEnv(env))
+	if err == nil || !strings.Contains(err.Error(), "BARNABY_VOICE_PROMPT_FILE") {
+		t.Errorf("missing file: err = %v, want BARNABY_VOICE_PROMPT_FILE error", err)
+	}
+}
+
 func TestLoadConfig_HTTPRequiresBearerToken(t *testing.T) {
 	t.Parallel()
 

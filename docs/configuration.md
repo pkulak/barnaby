@@ -42,6 +42,7 @@ it creates a dedicated voice worker and Pi session.
 |---|---|---|
 | `BARNABY_HTTP_LISTEN` | _(empty)_ | TCP listen address, such as `0.0.0.0:8787`. An empty value disables the HTTP server. |
 | `BARNABY_HTTP_BEARER_TOKEN` | _(empty)_ | Static bearer token required by `/v1/status` and `/v1/turn`. Required when `BARNABY_HTTP_LISTEN` is set. |
+| `BARNABY_VOICE_PROMPT_FILE` | _(empty)_ | Path to a file appended to the voice worker's system prompt, after the soul and the built-in voice instructions. Chat, background, and MCP prompts do not include it. Barnaby fails to start if the file cannot be read. |
 
 The endpoint has the same tools and skills as the chat worker. Keep it on a
 trusted network and treat the bearer token as full access to the Barnaby
@@ -179,8 +180,9 @@ normal `/tmp` cleanup.
 
 When the HTTP listener is enabled, voice turns use another Pi session under
 `<BARNABY_PI_SESSION_DIR>/voice`. The voice worker inherits the chat provider,
-model, soul, working directory, tools, and skills. Its context remains separate
-from both chat and background work.
+model, soul, working directory, tools, and skills, and adds
+`BARNABY_VOICE_PROMPT_FILE` when it is set. Its context remains separate from
+both chat and background work.
 
 ## Secrets and authentication
 

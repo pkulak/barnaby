@@ -242,7 +242,7 @@ func wireServices(
 		wireWorker(worker, app, b)
 	}
 
-	configureWorkerPrompts(app, svc.worker, svc.backgroundWorker, svc.voiceWorker, svc.mcpWorker)
+	configureWorkerPrompts(app, cfg.HTTP.VoicePrompt, svc.worker, svc.backgroundWorker, svc.voiceWorker, svc.mcpWorker)
 
 	go reminderLoop(ctx, svc.backgroundWorker)
 
@@ -289,12 +289,17 @@ func wireWorker(worker *Worker, app *App, backend workerMatrix) {
 	worker.SetMatrix(backend)
 }
 
-func configureWorkerPrompts(app *App, worker, backgroundWorker, voiceWorker, mcpWorker *Worker) {
+func configureWorkerPrompts(app *App, voicePrompt string, worker, backgroundWorker, voiceWorker, mcpWorker *Worker) {
 	worker.piCfg.SystemPrompt = app.systemPrompt(worker.piCfg.SystemPrompt)
 
 	backgroundWorker.piCfg.SystemPrompt = app.systemPrompt(backgroundWorker.piCfg.SystemPrompt)
 	if voiceWorker != nil {
-		voiceWorker.piCfg.SystemPrompt = strings.TrimRight(app.systemPrompt(voiceWorker.piCfg.SystemPrompt), "\n") + "\n\n" + voiceSystemPrompt
+		prompt := strings.TrimRight(app.systemPrompt(voiceWorker.piCfg.SystemPrompt), "\n") + "\n\n" + voiceSystemPrompt
+		if voicePrompt != "" {
+			prompt += "\n\n" + voicePrompt
+		}
+
+		voiceWorker.piCfg.SystemPrompt = prompt
 	}
 
 	if mcpWorker != nil {

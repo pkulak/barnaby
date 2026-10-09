@@ -667,6 +667,36 @@ func TestInbox_ConversationID(t *testing.T) {
 	}
 }
 
+func TestConfigureWorkerPrompts_VoicePrompt(t *testing.T) {
+	t.Parallel()
+
+	app := newTestAppWithMatrix(t, &mockMatrix{systemPromptExtraText: "Matrix room context."})
+	inbox := app.worker.inbox
+
+	for _, tc := range []struct {
+		name        string
+		voicePrompt string
+		want        string
+	}{
+		{"with voice prompt", "Speak softly.", "Soul\n\nMatrix room context.\n\n" + voiceSystemPrompt + "\n\nSpeak softly."},
+		{"without voice prompt", "", "Soul\n\nMatrix room context.\n\n" + voiceSystemPrompt},
+	} {
+		chat := NewWorker(inbox, PiConfig{SystemPrompt: "Soul"})
+		background := NewBackgroundWorker(inbox, PiConfig{SystemPrompt: "Soul"}, "")
+		voice := NewVoiceWorker(inbox, PiConfig{SystemPrompt: "Soul"})
+
+		configureWorkerPrompts(app, tc.voicePrompt, chat, background, voice, nil)
+
+		if voice.piCfg.SystemPrompt != tc.want {
+			t.Errorf("%s: voice prompt = %q, want %q", tc.name, voice.piCfg.SystemPrompt, tc.want)
+		}
+
+		if chat.piCfg.SystemPrompt != "Soul\n\nMatrix room context." {
+			t.Errorf("%s: chat prompt = %q", tc.name, chat.piCfg.SystemPrompt)
+		}
+	}
+}
+
 func TestApp_SystemPrompt(t *testing.T) {
 	t.Parallel()
 
