@@ -15,8 +15,8 @@ Barnaby ships a few skills in `skills/`:
 | Skill | What it does | Needs |
 |---|---|---|
 | `calendar` | Reads, adds, changes, and cancels events on CalDAV calendars, in the local timezone (`TZ`) | `CALDAV_URL`, `CALDAV_USERNAME`, and `CALDAV_PASSWORD` |
-| `image` | Generates or edits images (`openai/gpt-image-2.5-sunburst`) | `OPENROUTER_API_KEY` |
-| `transcribe` | Transcribes voice messages and other audio (`openai/gpt-4o-transcribe`) | `OPENROUTER_API_KEY` |
+| `image` | Generates or edits images (`microsoft/mai-image-2.6`) | `OPENROUTER_API_KEY` |
+| `transcribe` | Transcribes voice messages and other audio (`microsoft/mai-transcribe-2`) | `OPENROUTER_API_KEY` |
 | `sports-scores` | Scores, schedules, standings, and rankings from ESPN, in the local timezone (`TZ`) | `OPENROUTER_API_KEY` for team search only |
 | `sports-monitor` | Watches a live game and sends one alert | The `sports-scores` skill and the `reminders` extension |
 | `weather` | Current conditions, forecasts, precipitation timing, AQI, and severe-weather events from Tomorrow.io and PurpleAir | `TOMORROWIO_API_KEY`, and `WEATHER_HOME` (`latitude,longitude`) for a default location |

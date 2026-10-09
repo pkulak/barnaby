@@ -11,7 +11,7 @@ from pathlib import Path
 import requests
 
 API = "https://openrouter.ai/api/v1/images"
-MODEL = "openai/gpt-image-2.5-sunburst"
+MODEL = "microsoft/mai-image-2.6"
 OUT_DIR = Path("/tmp/images")
 
 
