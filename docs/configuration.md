@@ -150,7 +150,8 @@ Exit `0` to send the message to the agent and `1` to skip it. Skipped messages
 are still recorded in the chat session, as above. Anything the script prints is logged
 with the decision, which makes a probability or reason handy to print.
 See [`examples/group_trigger.py`](../examples/group_trigger.py) for a script
-that asks Jev.
+that asks Jev. It takes the bot's name from `BARNABY_AGENT_NAME` (`Barnaby` by
+default).
 
 Any other exit code, or running longer than 10 seconds, is logged as a warning
 and the message goes to the agent anyway. A broken script makes the bot chatty,
