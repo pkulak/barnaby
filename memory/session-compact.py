@@ -10,7 +10,7 @@ run     plan, one compactor `pi -p` per job (four at a time), then finish.
 plan    Pick idle sessions, archive the ones not worth a note, and write
         transcripts for the rest under STATE/work.
 finish  Move finished notes into place and archive their sessions.
-index   Rebuild each source's INDEX.md (finish does this too).
+index   Rebuild each source's INDEX.md (finish does this too, unless --no-index).
 """
 
 import argparse
@@ -38,6 +38,7 @@ ARCHIVE = Path(os.environ.get("XDG_DATA_HOME") or HOME / ".local/share") / "pi" 
 STATE = Path(os.environ.get("XDG_STATE_HOME") or HOME / ".local/state") / "session-compact"
 WORK = STATE / "work"
 MODEL = None
+INDEX = True
 PROMPTS = {"chat": HERE / "chat.md"}
 MAX_FAILURES = 2
 JOB_TIMEOUT = 30 * 60
@@ -441,7 +442,8 @@ def finish(outcomes=None):
         done.append(str(dest))
     save_failures(failures)
     swept = sweep_artifacts()
-    write_indexes()
+    if INDEX:
+        write_indexes()
     if not failed:
         shutil.rmtree(WORK, ignore_errors=True)
     return {"notes": done, "failed": failed, "artifacts_archived": swept}
@@ -492,13 +494,14 @@ def write_indexes():
 
 
 def main():
-    global ARCHIVE, STATE, WORK, MODEL
+    global ARCHIVE, STATE, WORK, MODEL, INDEX
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--source", type=parse_source, action="append", required=True, help="NAME:KIND:SESSIONS:NOTES")
     ap.add_argument("--prompt", type=parse_prompt, action="append", default=[], help="KIND=FILE, the note format")
     ap.add_argument("--model", help="pi model for the compactor, such as provider/id:thinking")
     ap.add_argument("--archive", type=Path, default=ARCHIVE, help="where raw sessions are compressed")
     ap.add_argument("--state", type=Path, default=STATE, help="work files, the lock, and failure counts")
+    ap.add_argument("--no-index", action="store_true", help="don't rebuild INDEX.md after finishing")
     sub = ap.add_subparsers(dest="cmd", required=True)
     r = sub.add_parser("run")
     r.add_argument("--limit", type=int, default=5)
@@ -511,6 +514,7 @@ def main():
     SOURCES[:] = args.source
     PROMPTS.update(args.prompt)
     ARCHIVE, STATE, MODEL = args.archive.expanduser(), args.state.expanduser(), args.model
+    INDEX = not args.no_index
     WORK = STATE / "work"
     if args.cmd == "run" and not MODEL:
         ap.error("run needs --model")

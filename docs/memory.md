@@ -56,4 +56,4 @@ memory/session-compact.py \
   run --limit 5
 ```
 
-Run `plan --dry-run --limit 100` instead of `run` to see what's waiting without changing anything.
+Run `plan --dry-run --limit 100` instead of `run` to see what's waiting without changing anything. Pass `--no-index` to skip `INDEX.md` when no agent loads it.
