@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"html"
 	"log/slog"
@@ -445,7 +446,17 @@ func (a *App) checkGroupMessage(ctx context.Context, msg matrix.Message) bool {
 	input := newGroupTriggerInput(a.groupHistory[msg.ConversationID], senderLabel(msg), msg.Text, time.Now())
 	a.mu.Unlock()
 
-	respond, output, err := runGroupTrigger(ctx, a.groupTriggerScript, a.groupTriggerTimeout, input)
+	// The input is logged with the decision, since the history lives only in
+	// memory and the decision can't be rerun without it.
+	payload, err := json.Marshal(input)
+	if err != nil {
+		slog.Warn("group trigger input failed to encode, delivering message",
+			"conversation", msg.ConversationID, "error", err)
+
+		return true
+	}
+
+	respond, output, err := runGroupTrigger(ctx, a.groupTriggerScript, a.groupTriggerTimeout, payload)
 	if err != nil {
 		slog.Warn("group trigger failed, delivering message",
 			"conversation", msg.ConversationID, "error", err, "output", output)
@@ -453,7 +464,8 @@ func (a *App) checkGroupMessage(ctx context.Context, msg matrix.Message) bool {
 		return true
 	}
 
-	slog.Info("group trigger", "conversation", msg.ConversationID, "respond", respond, "output", output)
+	slog.Info("group trigger", "conversation", msg.ConversationID, "respond", respond, "output", output,
+		"input", string(payload))
 
 	return respond
 }

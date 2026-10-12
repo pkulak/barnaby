@@ -148,8 +148,9 @@ measured from the current message, in whole units (`45s`, `2m`, `3h`, `2d`).
 The history lives in memory, so it starts empty after a restart.
 
 Exit `0` to send the message to the agent and `1` to skip it. Skipped messages
-are still recorded in the chat session, as above. Anything the script prints is logged
-with the decision, which makes a probability or reason handy to print.
+are still recorded in the chat session, as above. Each decision's log line
+includes the script's input, so the decision can be rerun, and whatever the
+script prints, which makes a probability or reason handy to print.
 See [`examples/group_trigger.py`](../examples/group_trigger.py) for a script
 that asks Jev. It takes the bot's name from `BARNABY_AGENT_NAME` (`Barnaby` by
 default).

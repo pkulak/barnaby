@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os/exec"
@@ -86,15 +85,10 @@ func truncateRunes(s string, limit int) string {
 	return string([]rune(s)[:limit]) + "…"
 }
 
-// runGroupTrigger pipes input to script as JSON. Exit 0 means respond and
-// exit 1 means skip; any other outcome, including a timeout, is an error.
-// It also returns the script's trimmed output for logging.
-func runGroupTrigger(ctx context.Context, script string, timeout time.Duration, input groupTriggerInput) (bool, string, error) {
-	payload, err := json.Marshal(input)
-	if err != nil {
-		return false, "", fmt.Errorf("encoding group trigger input: %w", err)
-	}
-
+// runGroupTrigger pipes payload, a JSON groupTriggerInput, to script. Exit 0
+// means respond and exit 1 means skip; any other outcome, including a timeout,
+// is an error. It also returns the script's trimmed output for logging.
+func runGroupTrigger(ctx context.Context, script string, timeout time.Duration, payload []byte) (bool, string, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
