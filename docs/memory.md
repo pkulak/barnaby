@@ -57,3 +57,5 @@ memory/session-compact.py \
 ```
 
 Run `plan --dry-run --limit 100` instead of `run` to see what's waiting without changing anything. Pass `--no-index` to skip `INDEX.md` when no agent loads it.
+
+Pass `--no-notes` to archive idle sessions without writing notes. That needs no model or prompt, so it costs nothing, and with `--archive DIR` it makes a cheap backup. Every idle session is archived in one run, whatever `--limit` says.

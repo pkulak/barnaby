@@ -39,6 +39,7 @@ STATE = Path(os.environ.get("XDG_STATE_HOME") or HOME / ".local/state") / "sessi
 WORK = STATE / "work"
 MODEL = None
 INDEX = True
+NOTES = True
 PROMPTS = {"chat": HERE / "chat.md"}
 MAX_FAILURES = 2
 JOB_TIMEOUT = 30 * 60
@@ -288,9 +289,9 @@ def plan(limit, dry_run):
         shutil.rmtree(WORK, ignore_errors=True)
         WORK.mkdir(parents=True)
     missing = {src["kind"] for src in SOURCES} - PROMPTS.keys()
-    if missing:
+    if missing and NOTES:
         sys.exit(f"No prompt for {', '.join(sorted(missing))} sessions; pass --prompt KIND=FILE.")
-    noted = noted_ids()
+    noted = noted_ids() if NOTES else set()
     failures = load_failures()
     skipped = {"already-noted": 0, "fork": 0, "self": 0, "trivial": 0}
     gave_up = []
@@ -299,6 +300,11 @@ def plan(limit, dry_run):
     for src, f in idle:
         if len(jobs) >= limit:
             break
+        if not NOTES:
+            skipped["no-notes"] = skipped.get("no-notes", 0) + 1
+            if not dry_run:
+                archive(f, src)
+            continue
         entries = load(f)
         header = next((e for e in entries if e.get("type") == "session"), {})
         path = active_path(entries)
@@ -494,7 +500,7 @@ def write_indexes():
 
 
 def main():
-    global ARCHIVE, STATE, WORK, MODEL, INDEX
+    global ARCHIVE, STATE, WORK, MODEL, INDEX, NOTES
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--source", type=parse_source, action="append", required=True, help="NAME:KIND:SESSIONS:NOTES")
     ap.add_argument("--prompt", type=parse_prompt, action="append", default=[], help="KIND=FILE, the note format")
@@ -502,6 +508,7 @@ def main():
     ap.add_argument("--archive", type=Path, default=ARCHIVE, help="where raw sessions are compressed")
     ap.add_argument("--state", type=Path, default=STATE, help="work files, the lock, and failure counts")
     ap.add_argument("--no-index", action="store_true", help="don't rebuild INDEX.md after finishing")
+    ap.add_argument("--no-notes", action="store_true", help="archive idle sessions without writing notes")
     sub = ap.add_subparsers(dest="cmd", required=True)
     r = sub.add_parser("run")
     r.add_argument("--limit", type=int, default=5)
@@ -514,9 +521,10 @@ def main():
     SOURCES[:] = args.source
     PROMPTS.update(args.prompt)
     ARCHIVE, STATE, MODEL = args.archive.expanduser(), args.state.expanduser(), args.model
-    INDEX = not args.no_index
+    NOTES = not args.no_notes
+    INDEX = NOTES and not args.no_index
     WORK = STATE / "work"
-    if args.cmd == "run" and not MODEL:
+    if args.cmd == "run" and NOTES and not MODEL:
         ap.error("run needs --model")
     if args.cmd == "index":
         write_indexes()
