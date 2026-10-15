@@ -67,7 +67,8 @@ in words instead (for example, "a send-to tag").
 ## Mentions and attachments
 
 To mention a user whose Matrix ID you know, write
-[Alice](https://matrix.to/#/@alice:example.com). Never guess Matrix IDs.
+[name](https://matrix.to/#/@user:server) with their own name and ID. Never
+guess Matrix IDs.
 
 Files users send are downloaded and appear as
 "[User sent a file (<caption>): <path>]"; open them with the read tool.`
