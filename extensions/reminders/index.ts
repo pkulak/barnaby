@@ -93,6 +93,23 @@ function normalizeCron(expression: string): string {
   return value;
 }
 
+// Agents set fast polling series and forget to cancel them once the
+// condition is met. Only series that fire at most once a day, with a single
+// minute and hour, may run indefinitely; anything more frequent must end
+// within a week.
+const MAX_SUBDAILY_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
+
+function checkEndAt(expression: string, endAt: string | undefined): void {
+  const [minute, hour] = expression.split(" ");
+  if (/^\d+$/.test(minute) && /^\d+$/.test(hour)) return;
+  if (!endAt || Date.parse(endAt) - Date.now() > MAX_SUBDAILY_DURATION_MS) {
+    throw new Error(
+      `cron '${expression}' fires more than once a day, so end_at is required ` +
+        "and must be within 7 days",
+    );
+  }
+}
+
 function normalizeTimezone(timezone: string): string {
   const value = timezone.trim();
   if (!value || /^[+-]\d{2}:?\d{2}$/.test(value)) {
@@ -208,13 +225,18 @@ export default function remindersExtension(pi: ExtensionAPI) {
       timezone: Type.String({ description: "IANA name, e.g. America/Los_Angeles." }),
       prompt: Type.String(),
       end_at: Type.Optional(
-        Type.String({ description: "Inclusive end, ISO 8601 with offset." }),
+        Type.String({
+          description:
+            "Inclusive end, ISO 8601 with offset. Required, within 7 days, " +
+            "unless the series fires at most once a day.",
+        }),
       ),
     }),
     async execute(_id, params, signal, _onUpdate, ctx) {
       const expression = normalizeCron(params.cron);
       const timezone = normalizeTimezone(params.timezone);
       const endAt = params.end_at ? normalizeWhen(params.end_at) : undefined;
+      checkEndAt(expression, endAt);
       const prompt = routePrompt(params.prompt, currentRoomId(ctx));
       const out = await sqlite(
         `INSERT INTO recurring_reminders (cron, timezone, end_at, prompt) VALUES (` +

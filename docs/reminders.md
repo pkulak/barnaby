@@ -22,6 +22,8 @@ timezone: America/Los_Angeles
 
 This fires every Monday at noon Pacific time. Cron fields are `minute hour day-of-month month day-of-week`. When both day fields are restricted, either one can match.
 
+Only a series that fires at most once a day, with a single number in both the minute and hour fields, may run without an end time. Anything more frequent, such as `*/3 * * * *` or `0 8,20 * * *`, must set an end time within 7 days. Agents tend to start fast polling series and forget to cancel them.
+
 Recurring reminders are deliberately loose scheduling. Missed or failed occurrences are not retried, and downtime does not produce catch-up reminders. Before a recurring occurrence is queued, Barnaby counts queued background triggers; it skips the occurrence when there are already five. One-shot reminders and trigger-pipe events are not capped.
 
 Canceling or reaching the optional inclusive end time deletes a recurring series. An occurrence already queued when the series is canceled may still run.
