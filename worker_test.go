@@ -471,6 +471,9 @@ func TestShouldSuppressReply(t *testing.T) {
 		{"no reply later", "result\nNO_REPLY", false, true},
 		{"summary then no reply", "All 12 resolved, 0 pending.\n\nNO_REPLY", false, true},
 		{"no reply with other text", "NO_REPLY is documented", false, false},
+		{"send-to then no reply", "<send-to>!room</send-to>\nNO_REPLY", true, true},
+		{"send-to joined to no reply", "<send-to>!room</send-to>NO_REPLY", true, true},
+		{"send-to only", "<send-to>!room</send-to>", true, true},
 		{"empty", "", true, true},
 		{"normal", "done", false, false},
 	} {

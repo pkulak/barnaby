@@ -892,23 +892,24 @@ func (w *Worker) buildPrompt(item Inbox) (string, bool) {
 // must be exactly the token: a chat turn may legitimately quote NO_REPLY in
 // text or code, so only an exact match counts. Background (trigger) replies
 // may carry surrounding output — models habitually prepend a status line — so
-// the token counts on either the first or last line.
+// the token counts on either the first or last line. A <send-to> tag is
+// removed first, so the check sees only the text that would be sent.
 func shouldSuppressReply(reply, source string, background bool) bool {
+	reply, _ = extractSendTo(reply)
 	if reply == "" {
 		slog.Info(source + ": empty response, suppressing")
 
 		return true
 	}
 
-	trimmed := strings.TrimSpace(reply)
-	if trimmed == noReplyToken {
+	if reply == noReplyToken {
 		slog.Info(source + ": NO_REPLY, suppressing")
 
 		return true
 	}
 
 	if background {
-		lines := strings.Split(trimmed, "\n")
+		lines := strings.Split(reply, "\n")
 		if strings.TrimSpace(lines[0]) == noReplyToken || strings.TrimSpace(lines[len(lines)-1]) == noReplyToken {
 			slog.Info(source + ": NO_REPLY (background), suppressing")
 
