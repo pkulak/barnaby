@@ -33,7 +33,7 @@ python3 scripts/calendar_cli.py events --query dentist                  # 30 day
 
 Run `date` first when the request says "tomorrow", "Saturday", or "next week", so you pick the right dates.
 
-Recurring events come back as separate occurrences. An event on several calendars comes back once, with every calendar in `calendars`. An all-day event's `end` is its last day. `--query` matches the title, location, and description; try a shorter word if nothing turns up.
+Read the whole output; don't pipe it through `head` or `tail`, or you'll miss events. Recurring events come back as separate occurrences. An event on several calendars comes back once, with every calendar in `calendars`. An all-day event's `end` is its last day. `--query` matches the title, location, and description, ignoring case, spaces, and punctuation; try a shorter word if nothing turns up.
 
 ## Adding events
 

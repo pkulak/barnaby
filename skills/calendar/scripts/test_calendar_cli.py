@@ -173,6 +173,12 @@ class CalendarTest(unittest.TestCase):
         self.assertEqual((result["from"], result["to"]), ("2026-09-08", "2027-10-08"))
         self.assertEqual([e["start"] for e in result["events"]], ["2027-03-02T09:00-08:00"])
 
+    def test_query_ignores_spaces_and_punctuation(self):
+        self.server.put("kid", event("ns", "NS pick-up", local(2026, 11, 24, 15), local(2026, 11, 24, 16)))
+        for query in ("pickup", "Pick up", "pick-up"):
+            titles = [e["title"] for e in self.events("--from", "2026-11-20", "--days", "7", "--query", query)]
+            self.assertEqual(titles, ["NS pick-up"], query)
+
     def test_add_uses_the_only_writable_calendar_and_defaults_to_an_hour(self):
         added = self.run_cli("add", "--title", "Haircut", "--start", "2026-10-09 15:30")["added"]
         self.assertEqual(

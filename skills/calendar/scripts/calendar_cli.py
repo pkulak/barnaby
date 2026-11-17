@@ -180,9 +180,14 @@ def merge(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted(merged.values(), key=lambda event: (event["start"], event["title"]))
 
 
+def letters(text: str) -> str:
+    return re.sub(r"\W|_", "", text.casefold())
+
+
 def matches(component: icalendar.Event, query: str) -> bool:
+    """Ignore case, spaces, and punctuation, so "pick up" finds "pick-up"."""
     text = " ".join(str(component.get(key, "")) for key in ("SUMMARY", "LOCATION", "DESCRIPTION"))
-    return query.casefold() in text.casefold()
+    return letters(query) in letters(text)
 
 
 # Calendar discovery
