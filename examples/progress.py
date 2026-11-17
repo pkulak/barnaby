@@ -42,7 +42,8 @@ def main():
         },
     )
     with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
-        print(json.load(response)["choices"][0]["message"]["content"].strip())
+        status = json.load(response)["choices"][0]["message"]["content"].strip()
+    print(status.rstrip(".…") + "…")
 
 
 if __name__ == "__main__":
