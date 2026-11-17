@@ -17,6 +17,8 @@ type stubMatrix struct{}
 
 func (stubMatrix) SetTyping(context.Context, string, bool)                    {}
 func (stubMatrix) SendMessage(context.Context, string, string, string) string { return "" }
+func (stubMatrix) EditMessage(context.Context, string, string, string) error  { return nil }
+func (stubMatrix) RedactMessage(context.Context, string, string) error        { return nil }
 
 // newFakePiWorker builds a Worker wired to the bash fake-pi stub.
 // Cleanup stops the spawned process.

@@ -20,6 +20,8 @@ type Config struct {
 	HTTP         HTTPConfig
 	// GroupTriggerScript decides which group messages reach the agent.
 	GroupTriggerScript string
+	// ProgressScript summarizes a running chat turn for its status message.
+	ProgressScript string
 }
 
 type HTTPConfig struct {
@@ -98,11 +100,14 @@ func loadConfig(getenv func(string) string) (*Config, error) {
 	allowedUsers := parseAllowedUsers(env.list("BARNABY_ALLOWED_USERS"))
 	workingDir := env.or("BARNABY_PI_WORKING_DIR", "/var/lib/barnaby")
 
-	groupTriggerScript := env.str("BARNABY_GROUP_TRIGGER_SCRIPT")
-	if groupTriggerScript != "" {
-		if _, err := exec.LookPath(groupTriggerScript); err != nil {
-			return nil, fmt.Errorf("BARNABY_GROUP_TRIGGER_SCRIPT: %w", err)
-		}
+	groupTriggerScript, err := env.executable("BARNABY_GROUP_TRIGGER_SCRIPT")
+	if err != nil {
+		return nil, err
+	}
+
+	progressScript, err := env.executable("BARNABY_PROGRESS_SCRIPT")
+	if err != nil {
+		return nil, err
 	}
 
 	httpCfg, err := loadHTTPConfig(env)
@@ -131,6 +136,7 @@ func loadConfig(getenv func(string) string) (*Config, error) {
 		MCPPi:              loadMCPPiConfig(env, workingDir, idleTimeout, skills),
 		HTTP:               httpCfg,
 		GroupTriggerScript: groupTriggerScript,
+		ProgressScript:     progressScript,
 	}
 
 	if err := cfg.Matrix.validate(); err != nil {
@@ -278,6 +284,20 @@ func (e envReader) bool(key string) bool {
 	default:
 		return false
 	}
+}
+
+// executable returns the value of key, which must name an executable if set.
+func (e envReader) executable(key string) (string, error) {
+	path := e.getenv(key)
+	if path == "" {
+		return "", nil
+	}
+
+	if _, err := exec.LookPath(path); err != nil {
+		return "", fmt.Errorf("%s: %w", key, err)
+	}
+
+	return path, nil
 }
 
 // duration parses a time.Duration, returning def if unset. The error message

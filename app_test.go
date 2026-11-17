@@ -25,6 +25,8 @@ type mockMatrix struct {
 	typingCalls           []typingCall
 	resetCalls            []string
 	reactions             []reactionCall
+	edits                 []sentEdit
+	redactions            []string
 	systemPromptExtraText string
 	sendFileErr           error
 	joinedRooms           []string
@@ -33,6 +35,11 @@ type mockMatrix struct {
 type sentMessage struct {
 	conversationID string
 	text           string
+}
+
+type sentEdit struct {
+	eventID string
+	text    string
 }
 
 type sentFile struct {
@@ -67,6 +74,24 @@ func (m *mockMatrix) SendMessage(_ context.Context, conversationID string, text 
 	m.sentMessages = append(m.sentMessages, sentMessage{conversationID, text})
 
 	return "$sent-" + strconv.Itoa(len(m.sentMessages))
+}
+
+func (m *mockMatrix) EditMessage(_ context.Context, _, eventID, text string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.edits = append(m.edits, sentEdit{eventID, text})
+
+	return nil
+}
+
+func (m *mockMatrix) RedactMessage(_ context.Context, _, eventID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.redactions = append(m.redactions, eventID)
+
+	return nil
 }
 
 func (m *mockMatrix) SendFile(_ context.Context, conversationID string, filePath string) error {

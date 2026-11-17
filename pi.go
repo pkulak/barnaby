@@ -31,11 +31,11 @@ const (
 // goroutine never writes to stdin directly; extension UI requests are
 // handled by the caller when it processes events.
 type PiProcess struct {
-	cmd        *exec.Cmd
-	stdin      io.WriteCloser
-	done       chan struct{}
-	events     <-chan rpcParsed // single persistent reader feeds all waiters
-	onToolCall func()           // optional callback for tool_execution_start events
+	cmd     *exec.Cmd
+	stdin   io.WriteCloser
+	done    chan struct{}
+	events  <-chan rpcParsed // single persistent reader feeds all waiters
+	onEvent func(rpcEvent)   // optional callback for every event during a prompt
 	// model is the provider/model chosen by SetModel; empty means the
 	// model the process started with.
 	model string

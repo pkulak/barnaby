@@ -47,6 +47,11 @@ type Worker struct {
 	mcpSessions   *mcpSessionStore // non-nil only for the MCP worker
 	triggerPrompt string
 
+	// progressScript summarizes a running chat turn for its status message.
+	progressScript   string
+	progressDelay    time.Duration
+	progressInterval time.Duration
+
 	// mu protects pi, lastUse, compactResult, currentCancel, currentItemID, freshStart, and turned.
 	mu         sync.Mutex
 	pi         *PiProcess
@@ -76,6 +81,8 @@ type compactOutcome struct {
 type workerMatrix interface {
 	SetTyping(ctx context.Context, conversationID string, typing bool)
 	SendMessage(ctx context.Context, conversationID, text, replyToID string) string
+	EditMessage(ctx context.Context, conversationID, eventID, text string) error
+	RedactMessage(ctx context.Context, conversationID, eventID string) error
 }
 
 // NewWorker creates a chat worker. The Pi process starts lazily on first dequeue.
@@ -106,13 +113,15 @@ func NewMCPWorker(inbox *InboxStore, piCfg PiConfig) *Worker {
 
 func newWorker(inbox *InboxStore, piCfg PiConfig, triggerPrompt string, background bool) *Worker {
 	return &Worker{
-		inbox:         inbox,
-		piCfg:         piCfg,
-		startPi:       StartPi,
-		triggerPrompt: triggerPrompt,
-		background:    background,
-		lastUse:       time.Now(),
-		wake:          make(chan struct{}, 1),
+		inbox:            inbox,
+		piCfg:            piCfg,
+		startPi:          StartPi,
+		triggerPrompt:    triggerPrompt,
+		background:       background,
+		lastUse:          time.Now(),
+		wake:             make(chan struct{}, 1),
+		progressDelay:    defaultProgressDelay,
+		progressInterval: defaultProgressInterval,
 	}
 }
 
@@ -124,6 +133,10 @@ func (w *Worker) SetMatrix(matrixClient workerMatrix) { w.matrix = matrixClient 
 
 // SetVoiceService wires completion routing for a voice worker.
 func (w *Worker) SetVoiceService(service *VoiceService) { w.voiceService = service }
+
+// SetProgressScript sets the script that summarizes chat turns for their
+// status messages. Empty disables status messages.
+func (w *Worker) SetProgressScript(script string) { w.progressScript = script }
 
 // SetMCPService wires completion routing for an MCP worker.
 func (w *Worker) SetMCPService(service *MCPService) { w.mcpService = service }
@@ -551,13 +564,15 @@ func (w *Worker) processPrompt(ctx context.Context, item Inbox) bool {
 		w.resetTriggerSession(ctx)
 	}
 
-	onToolCall := w.toolCallHandler(ctx, item, convID)
+	progress := w.startProgress(ctx, item, convID)
+	// Errors and cancellations end here; finish ignores later calls.
+	defer progress.finish(ctx, "Stopped")
 
-	pi, reply, err := w.sendTurn(ctx, item, prompt, onToolCall)
+	onEvent := w.eventHandler(ctx, item, convID, progress)
+
+	pi, reply, err := w.sendTurn(ctx, item, prompt, onEvent)
 	if err != nil {
-		killPi := pi != nil
-
-		w.handlePiError(ctx, item, convID, "pi prompt failed", err, killPi)
+		w.handlePiError(ctx, item, convID, "pi prompt failed", err, pi != nil)
 
 		return false
 	}
@@ -566,9 +581,11 @@ func (w *Worker) processPrompt(ctx context.Context, item Inbox) bool {
 	w.lastUse = time.Now()
 	w.mu.Unlock()
 
-	reply = w.prepareReply(ctx, pi, item, convID, reply, onToolCall)
+	reply = w.prepareReply(ctx, pi, item, convID, reply, onEvent)
 
 	if shouldSuppressReply(reply, item.Source, w.background) {
+		progress.finish(ctx, "")
+
 		return false
 	}
 
@@ -577,7 +594,7 @@ func (w *Worker) processPrompt(ctx context.Context, item Inbox) bool {
 		targetRoom = w.app.resolveRoomID(ctx, targetRoom)
 	}
 
-	convID, replyToID := replyDestination(convID, item.ConversationID, item.ReplyTo, targetRoom)
+	replyRoom, replyToID := replyDestination(convID, item.ConversationID, item.ReplyTo, targetRoom)
 
 	if ctx.Err() != nil {
 		slog.Info("worker: cancelled item dropped before reply", "source", item.Source)
@@ -585,17 +602,18 @@ func (w *Worker) processPrompt(ctx context.Context, item Inbox) bool {
 		return false
 	}
 
-	w.app.sendReplyWithFiles(ctx, convID, reply, replyToID, !w.background, w.background)
+	progress.finish(ctx, progressDoneLabel(convID, replyRoom))
+	w.app.sendReplyWithFiles(ctx, replyRoom, reply, replyToID, !w.background, w.background)
 
 	return false
 }
 
 // sendTurn sends a user or trigger prompt. A failed trigger turn continues on
 // the fallback model.
-func (w *Worker) sendTurn(ctx context.Context, item Inbox, prompt string, onToolCall func()) (*PiProcess, string, error) {
-	pi, reply, err := w.sendWithRetry(ctx, prompt, onToolCall)
+func (w *Worker) sendTurn(ctx context.Context, item Inbox, prompt string, onEvent func(rpcEvent)) (*PiProcess, string, error) {
+	pi, reply, err := w.sendWithRetry(ctx, prompt, onEvent)
 	if err != nil && item.Source == sourceTrigger {
-		reply, err = w.continueOnFallback(ctx, pi, err, onToolCall)
+		reply, err = w.continueOnFallback(ctx, pi, err, onEvent)
 	}
 
 	return pi, reply, err
@@ -685,7 +703,7 @@ func (w *Worker) selectTriggerModel(ctx context.Context, pi *PiProcess) error {
 // primary model fails with a provider error. The session keeps the earlier
 // tool results, so the fallback picks up where the primary stopped. The
 // fallback stays selected for FallbackCooldown.
-func (w *Worker) continueOnFallback(ctx context.Context, pi *PiProcess, err error, onToolCall func()) (string, error) {
+func (w *Worker) continueOnFallback(ctx context.Context, pi *PiProcess, err error, onEvent func(rpcEvent)) (string, error) {
 	fallback := w.piCfg.FallbackProvider + "/" + w.piCfg.FallbackModel
 
 	var providerErr *providerError
@@ -701,7 +719,7 @@ func (w *Worker) continueOnFallback(ctx context.Context, pi *PiProcess, err erro
 		return "", errors.Join(err, fmt.Errorf("switching to fallback model: %w", errSet))
 	}
 
-	return pi.sendAndWait(ctx, "Continue.", onToolCall)
+	return pi.sendAndWait(ctx, "Continue.", onEvent)
 }
 
 func (w *Worker) processVoicePrompt(ctx context.Context, item Inbox) {
@@ -790,11 +808,11 @@ func (w *Worker) prepareReply(
 	pi *PiProcess,
 	item Inbox,
 	convID, reply string,
-	onToolCall func(),
+	onEvent func(rpcEvent),
 ) string {
 	reply, reaction := extractReaction(reply)
 	if item.Source == sourceUser && reply == "" && reaction == nil {
-		reply = w.retryEmptyResponse(ctx, pi, onToolCall)
+		reply = w.retryEmptyResponse(ctx, pi, onEvent)
 		reply, reaction = extractReaction(reply)
 	}
 
@@ -807,9 +825,25 @@ func (w *Worker) prepareReply(
 	return reply
 }
 
-// toolCallHandler acknowledges the first tool used for a Matrix group message
-// with an eyes reaction.
-func (w *Worker) toolCallHandler(ctx context.Context, item Inbox, convID string) func() {
+// startProgress starts status updates for a chat turn when a progress script
+// is set, and returns nil otherwise.
+func (w *Worker) startProgress(ctx context.Context, item Inbox, convID string) *progressReporter {
+	if w.progressScript == "" || item.Source != sourceUser {
+		return nil
+	}
+
+	return startProgressReporter(ctx, w.progressScript, w.matrix, convID, item.Content,
+		w.progressDelay, w.progressInterval)
+}
+
+// eventHandler returns the Pi event callback for a turn. It feeds the
+// progress reporter when there is one. Otherwise it acknowledges the first
+// tool used for a Matrix group message with an eyes reaction.
+func (w *Worker) eventHandler(ctx context.Context, item Inbox, convID string, progress *progressReporter) func(rpcEvent) {
+	if progress != nil {
+		return progress.record
+	}
+
 	if w.background || item.Source != sourceUser || !item.IsGroup || item.MessageID == "" {
 		return nil
 	}
@@ -817,8 +851,8 @@ func (w *Worker) toolCallHandler(ctx context.Context, item Inbox, convID string)
 	notificationCtx := context.WithoutCancel(ctx)
 	acknowledged := false
 
-	return func() {
-		if acknowledged {
+	return func(evt rpcEvent) {
+		if acknowledged || evt.Type != rpcTypeToolExecutionStart {
 			return
 		}
 
@@ -1019,14 +1053,14 @@ func isContextCancellation(ctx context.Context, err error) bool {
 func (w *Worker) sendWithRetry(
 	ctx context.Context,
 	prompt string,
-	onToolCall func(),
+	onEvent func(rpcEvent),
 ) (*PiProcess, string, error) {
 	pi, err := w.ensurePi(ctx)
 	if err != nil {
 		return nil, "", err
 	}
 
-	reply, err := pi.sendAndWait(ctx, prompt, onToolCall)
+	reply, err := pi.sendAndWait(ctx, prompt, onEvent)
 	if err == nil {
 		return pi, reply, nil
 	}
@@ -1044,7 +1078,7 @@ func (w *Worker) sendWithRetry(
 		return nil, "", err
 	}
 
-	reply, err = pi.sendAndWait(ctx, prompt, onToolCall)
+	reply, err = pi.sendAndWait(ctx, prompt, onEvent)
 
 	return pi, reply, err
 }
@@ -1180,10 +1214,10 @@ func (w *Worker) resolveRoomID() string {
 	return id
 }
 
-func (w *Worker) retryEmptyResponse(ctx context.Context, pi *PiProcess, onToolCall func()) string {
+func (w *Worker) retryEmptyResponse(ctx context.Context, pi *PiProcess, onEvent func(rpcEvent)) string {
 	slog.Warn("worker: empty response, re-prompting for summary")
 
-	reply, err := pi.sendAndWait(ctx, "You just completed a task but your response contained no text for the user. Please briefly summarize what you did or respond to the user's message.", onToolCall)
+	reply, err := pi.sendAndWait(ctx, "You just completed a task but your response contained no text for the user. Please briefly summarize what you did or respond to the user's message.", onEvent)
 	if err != nil {
 		slog.Error("worker: re-prompt failed", "error", err)
 

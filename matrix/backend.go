@@ -276,6 +276,27 @@ func (b *Backend) SendMessage(ctx context.Context, conversationID string, text s
 	return lastEventID
 }
 
+// EditMessage replaces the text of a message the bot sent.
+func (b *Backend) EditMessage(ctx context.Context, conversationID, eventID, text string) error {
+	content := format.RenderMarkdown(text, true, false)
+	content.SetEdit(id.EventID(eventID))
+
+	if _, err := b.client.SendMessageEvent(ctx, id.RoomID(conversationID), event.EventMessage, &content); err != nil {
+		return fmt.Errorf("editing message: %w", err)
+	}
+
+	return nil
+}
+
+// RedactMessage deletes a message the bot sent.
+func (b *Backend) RedactMessage(ctx context.Context, conversationID, eventID string) error {
+	if _, err := b.client.RedactEvent(ctx, id.RoomID(conversationID), id.EventID(eventID)); err != nil {
+		return fmt.Errorf("redacting message: %w", err)
+	}
+
+	return nil
+}
+
 // SendReaction sends an annotation reaction to a Matrix event.
 func (b *Backend) SendReaction(ctx context.Context, conversationID, messageID, emoji string) error {
 	_, err := b.client.SendReaction(ctx, id.RoomID(conversationID), id.EventID(messageID), emoji)

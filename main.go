@@ -236,6 +236,7 @@ func wireServices(
 	wireHTTPServices(cfg, inbox, app, &svc)
 
 	app.SetGroupTriggerScript(cfg.GroupTriggerScript)
+	svc.worker.SetProgressScript(cfg.ProgressScript)
 
 	workers := []*Worker{svc.worker, svc.backgroundWorker, svc.voiceWorker, svc.mcpWorker}
 	for _, worker := range workers {

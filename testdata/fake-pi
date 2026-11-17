@@ -39,6 +39,14 @@ while IFS= read -r line; do
       esac
       printf '%s\n' '{"type":"response","command":"prompt","success":true}'
       printf '%s\n' '{"type":"agent_start"}'
+      # A slow turn gives progress tests time to post a status, then goes on
+      # to whichever reply the rest of the prompt picks.
+      case "$line" in
+        *slow-progress*)
+          printf '%s\n' '{"type":"message_end","message":{"role":"assistant","content":[{"type":"toolCall","name":"bash","arguments":{"command":"sleep 1"}}]}}'
+          sleep 0.5
+          ;;
+      esac
       # Return reaction control tags for worker integration tests.
       case "$line" in
         *reaction-only-test*)

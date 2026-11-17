@@ -35,6 +35,9 @@ type rpcEvent struct {
 	// agent_end fields
 	Messages json.RawMessage `json:"messages,omitempty"`
 
+	// message_end fields
+	Message json.RawMessage `json:"message,omitempty"`
+
 	// extension_ui_request fields
 	Method string `json:"method,omitempty"`
 
@@ -87,6 +90,7 @@ const (
 	rpcTypeAgentStart          = "agent_start"
 	rpcTypeAgentEnd            = "agent_end"
 	rpcTypeMessageUpdate       = "message_update"
+	rpcTypeMessageEnd          = "message_end"
 	rpcTypeToolExecutionStart  = "tool_execution_start"
 	rpcTypeToolExecutionEnd    = "tool_execution_end"
 	rpcTypeToolExecutionUpdate = "tool_execution_update"
@@ -295,18 +299,18 @@ func (p *PiProcess) SessionStats(ctx context.Context) (SessionStats, error) { //
 }
 
 // sendAndWait sends a prompt command and waits for the agent to finish.
-// The caller must ensure only one goroutine calls this at a time. Tool calls
-// made during this prompt are forwarded to onToolCall when non-nil.
+// The caller must ensure only one goroutine calls this at a time. Events
+// received during this prompt are forwarded to onEvent when non-nil.
 // If ctx is cancelled, stdin is closed so a blocked command write returns.
 // The worker then kills the process so a stuck turn cannot block its queue.
-func (p *PiProcess) sendAndWait(ctx context.Context, message string, onToolCall func()) (string, error) {
+func (p *PiProcess) sendAndWait(ctx context.Context, message string, onEvent func(rpcEvent)) (string, error) {
 	if !p.IsAlive() {
 		return "", errors.New("pi process is not alive")
 	}
 
-	p.onToolCall = onToolCall
+	p.onEvent = onEvent
 
-	defer func() { p.onToolCall = nil }()
+	defer func() { p.onEvent = nil }()
 	defer p.closeStdinOnCancel(ctx)()
 
 	if err := p.sendPromptCommand(message); err != nil {
@@ -379,7 +383,7 @@ func readEvents(scanner *bufio.Scanner, ch chan<- rpcParsed) {
 
 // drainEvents runs the caller-side event loop: it reads parsed events
 // from the persistent reader, handles side effects (extension UI cancel,
-// tool call notifications), and calls handleFn for each event.
+// event notifications), and calls handleFn for each event.
 // handleFn returns true when the desired termination event has been seen.
 func (p *PiProcess) drainEvents(ctx context.Context, handleFn func(rpcEvent) (bool, error)) error {
 	for {
@@ -429,16 +433,15 @@ func (p *PiProcess) nextEvent(ctx context.Context) (rpcParsed, error) {
 }
 
 // handleSideEffects processes events that are common to all commands:
-// extension UI auto-cancel and tool call notifications.
+// extension UI auto-cancel and event notifications.
 func (p *PiProcess) handleSideEffects(evt rpcEvent) error {
+	if p.onEvent != nil {
+		p.onEvent(evt)
+	}
+
 	switch evt.Type {
 	case rpcTypeExtensionUIRequest:
 		p.autoRespondExtensionUI(evt)
-
-	case rpcTypeToolExecutionStart:
-		if p.onToolCall != nil {
-			p.onToolCall()
-		}
 
 	case rpcTypeResponse:
 		if evt.Success != nil && !*evt.Success {

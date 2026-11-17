@@ -160,6 +160,41 @@ and the message goes to the agent anyway. A broken script makes the bot chatty,
 not deaf. The script runs inline, so a slow one delays every room. Barnaby
 refuses to start if the path isn't executable.
 
+### Progress updates
+
+Set `BARNABY_PROGRESS_SCRIPT` to an executable that summarizes what the agent is
+doing, and a chat turn that runs longer than 10 seconds gets a status message.
+The status is edited every 15 seconds while the turn goes on, and the reply
+arrives as a new message, so it still notifies. In groups, the status replaces
+the 👀 reaction.
+
+The script gets the user's message, the last status, and the Pi messages since
+the last run as JSON on stdin:
+
+```json
+{
+  "request": "---\nfrom: Gwen @gwen:kulak.us\n---\nwhat's on the calendar this week?",
+  "summary": "Checking the family calendar",
+  "messages": [
+    {"role": "assistant", "content": [{"type": "toolCall", "name": "bash", "arguments": {"command": "calendar_cli list --week"}}]},
+    {"role": "toolResult", "toolName": "bash", "content": [{"type": "text", "text": "Mon: bins…"}]}
+  ]
+}
+```
+
+`messages` holds Pi messages as they appear in the session file, with every
+string cut to 2,000 characters. The script runs only when there are new
+messages. Print the new status on stdout; empty output or an unchanged status
+leaves the message alone. A nonzero exit, or running longer than 10 seconds, is
+logged as a warning and skipped, so a broken script leaves the bot quiet as
+before. See [`examples/progress.py`](../examples/progress.py) for a script that
+asks a cheap model.
+
+When the turn ends, the status becomes `Done (1m42s)`. If the reply went to
+another room, it links there. If there's no reply (`NO_REPLY`, or just a
+reaction), the status is deleted. A failed or stopped turn shows
+`Stopped (1m42s)`.
+
 ## Pi configuration
 
 `BARNABY_BACKGROUND_PI_PROVIDER` and `BARNABY_BACKGROUND_PI_MODEL` optionally
