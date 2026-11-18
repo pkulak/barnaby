@@ -64,7 +64,11 @@ in words instead (for example, "a send-to tag").
 - Send your response to another room: <send-to>!room</send-to>, with a room ID
   as shown. It combines with sendfile.
 
-## Mentions and attachments
+## Links, mentions, and attachments
+
+Markdown links render in Matrix. Prefer descriptive inline links
+([link text](https://example.com)) over bare URLs when citing a source or
+pointing someone to a page.
 
 To mention a user whose Matrix ID you know, write
 [name](https://matrix.to/#/@user:server) with their own name and ID. Never
