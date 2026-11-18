@@ -30,7 +30,7 @@ Canceling or reaching the optional inclusive end time deletes a recurring series
 
 ## Background session
 
-Reminders and trigger-pipe events share one background Pi process, but every run starts with empty context: Barnaby resets the session before each trigger. The background session is independent from chat and has the same working directory, tools, skills, and system prompt. Set these optional overrides to use a cheaper model for background work:
+Reminders and trigger-pipe events share one background Pi process, but every run starts with empty context: Barnaby resets the session before each trigger. The background session is independent from chat and has the same working directory, tools, skills, and system prompt, plus a note that its response is the message Barnaby posts to Matrix. Set these optional overrides to use a cheaper model for background work:
 
 - `BARNABY_BACKGROUND_PI_PROVIDER`
 - `BARNABY_BACKGROUND_PI_MODEL`

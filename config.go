@@ -377,6 +377,8 @@ func loadSoul(env envReader) string {
 
 const defaultTriggerPrompt = `External trigger received.`
 
+const backgroundSystemPrompt = `You handle reminders and external triggers in a background session. Your response is the message: Barnaby posts it to Matrix, in the send-to room if you give one and otherwise in the default room. Never post to Matrix any other way, such as calling the Matrix API. Respond with exactly NO_REPLY when there is nothing to post.`
+
 func parseCommaSeparated(s string) []string {
 	if s == "" {
 		return nil

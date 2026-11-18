@@ -293,7 +293,7 @@ func wireWorker(worker *Worker, app *App, backend workerMatrix) {
 func configureWorkerPrompts(app *App, voicePrompt string, worker, backgroundWorker, voiceWorker, mcpWorker *Worker) {
 	worker.piCfg.SystemPrompt = app.systemPrompt(worker.piCfg.SystemPrompt)
 
-	backgroundWorker.piCfg.SystemPrompt = app.systemPrompt(backgroundWorker.piCfg.SystemPrompt)
+	backgroundWorker.piCfg.SystemPrompt = strings.TrimRight(app.systemPrompt(backgroundWorker.piCfg.SystemPrompt), "\n") + "\n\n" + backgroundSystemPrompt
 	if voiceWorker != nil {
 		prompt := strings.TrimRight(app.systemPrompt(voiceWorker.piCfg.SystemPrompt), "\n") + "\n\n" + voiceSystemPrompt
 		if voicePrompt != "" {

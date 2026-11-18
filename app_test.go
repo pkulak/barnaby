@@ -719,6 +719,10 @@ func TestConfigureWorkerPrompts_VoicePrompt(t *testing.T) {
 		if chat.piCfg.SystemPrompt != "Soul\n\nMatrix room context." {
 			t.Errorf("%s: chat prompt = %q", tc.name, chat.piCfg.SystemPrompt)
 		}
+
+		if want := "Soul\n\nMatrix room context.\n\n" + backgroundSystemPrompt; background.piCfg.SystemPrompt != want {
+			t.Errorf("%s: background prompt = %q, want %q", tc.name, background.piCfg.SystemPrompt, want)
+		}
 	}
 }
 
